@@ -232,8 +232,18 @@
             auto new_size = size() + 1;
             auto index = it - begin();
             veque<T> other( new_size * 3, new_size );
-            move( begin(), it, other.begin() );
-            move( it, end(), other.begin() + index + 1 );
+            auto dest = other.begin();
+            for ( auto src = begin(); src != it; ++src )
+            {
+                new(dest) T(std::move(*src));
+                ++dest;
+            }
+            dest += count;
+            for ( auto src = it; src != end(); ++src )
+            {
+                new(dest) T(std::move(*src));
+                ++dest;
+            }
             other._size = new_size;
             swap(other);
             return begin() + index;
