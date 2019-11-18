@@ -25,5 +25,6 @@ In addition, **veque** provides the following additional functions:
 
 ### To do:
 * GCC memory allocations are already _very aligned_, but code should explicitly demand correctly aligned memory.
+* Specialize for custom copy/move/destruct properties of `T`
 * Implement `std::hash<veque>`
 * Allocator support
