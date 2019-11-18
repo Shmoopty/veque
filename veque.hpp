@@ -79,10 +79,14 @@
         void reserve(size_type);
         void reserve_front(size_type);
         void reserve_back(size_type);
-        size_type capacity() const noexcept;
+        // Returns current storage + unused allocated storage before front()
         size_type capacity_front() const noexcept;
+        // Returns current storage + unused allocated storage after back()
         size_type capacity_back() const noexcept;
+        // Returns current storage + all unused allocated storage
         size_type capacity_full() const noexcept;
+        // To achieve interface parity with std::vector, capacity() returns capacity_back();
+        size_type capacity() const noexcept;
         void shrink_to_fit();
 
         // Modifiers
@@ -103,10 +107,15 @@
         template <class ... Args> void emplace_front(Args && ... args);
         void pop_back();
         void pop_front();
+        // Resizes the veque, by adding or removing from the front.
         void resize_front(size_type);
         void resize_front(size_type, const T &);
+        // Resizes the veque, by adding or removing from the back.
         void resize_back(size_type);
         void resize_back(size_type, const T &);
+        // To achieve interface parity with std::vector, resize() performs resize_back();
+        void resize(size_type);
+        void resize(size_type, const T &);
         void swap(veque<T> &);
 
     private:
@@ -464,18 +473,18 @@
     template <typename T>
     typename veque<T>::size_type veque<T>::capacity() const noexcept
     {
-        return std::min( capacity_front(), capacity_back() );
+        return capacity_back();
     }
 
     template <typename T>
-    void veque<T>::resize_back( veque<T>::size_type sz )
+    void veque<T>::resize_back( veque<T>::size_type count )
     {
-        if ( sz > _size )
+        if ( count > _size )
         {
-            const auto add_count = sz - size();
-            if ( sz > capacity_back() )
+            const auto add_count = count - size();
+            if ( count > capacity_back() )
             {
-                veque<T> other( sz * 3, sz );
+                veque<T> other( count * 3, count );
                 for ( auto && element : *this )
                 {
                     other.push_back( std::move(element) );
@@ -489,7 +498,7 @@
         }
         else
         {
-            const auto remove_count = size() - sz;
+            const auto remove_count = size() - count;
             for ( size_type i = 0; i != remove_count; ++ i )
             {
                 pop_back();
@@ -498,14 +507,14 @@
     }
 
     template <typename T>
-    void veque<T>::resize_back( veque<T>::size_type sz, const T & value )
+    void veque<T>::resize_back( veque<T>::size_type count, const T & value )
     {
-        if ( sz > _size )
+        if ( count > _size )
         {
-            const auto add_count = sz - size();
-            if ( sz > capacity_back() )
+            const auto add_count = count - size();
+            if ( count > capacity_back() )
             {
-                veque<T> other( sz * 3, sz );
+                veque<T> other( count * 3, count );
                 for ( auto && element : *this )
                 {
                     other.push_back( std::move(element) );
@@ -519,7 +528,7 @@
         }
         else
         {
-            const auto remove_count = size() - sz;
+            const auto remove_count = size() - count;
             for ( size_type i = 0; i != remove_count; ++ i )
             {
                 pop_back();
@@ -529,14 +538,14 @@
 
     
     template <typename T>
-    void veque<T>::resize_front( veque<T>::size_type sz )
+    void veque<T>::resize_front( veque<T>::size_type count )
     {
-        if ( sz > _size )
+        if ( count > _size )
         {
-            const auto add_count = sz - size();
-            if ( sz > capacity_back() )
+            const auto add_count = count - size();
+            if ( count > capacity_back() )
             {
-                veque<T> other( sz * 3, sz * 2 );
+                veque<T> other( count * 3, count * 2 );
                 for ( auto && element : *this )
                 {
                     other.push_front( std::move(element) );
@@ -550,7 +559,7 @@
         }
         else
         {
-            const auto remove_count = size() - sz;
+            const auto remove_count = size() - count;
             for ( size_type i = 0; i != remove_count; ++ i )
             {
                 pop_front();
@@ -560,14 +569,14 @@
     
     
     template <typename T>
-    void veque<T>::resize_front( veque<T>::size_type sz, const T & value )
+    void veque<T>::resize_front( veque<T>::size_type count, const T & value )
     {
-        if ( sz > _size )
+        if ( count > _size )
         {
-            const auto add_count = sz - size();
-            if ( sz > capacity_back() )
+            const auto add_count = count - size();
+            if ( count > capacity_back() )
             {
-                veque<T> other( sz * 3, sz * 2 );
+                veque<T> other( count * 3, count * 2 );
                 for ( auto && element : *this )
                 {
                     other.push_front( std::move(element) );
@@ -581,12 +590,25 @@
         }
         else
         {
-            const auto remove_count = size() - sz;
+            const auto remove_count = size() - count;
             for ( size_type i = 0; i != remove_count; ++ i )
             {
                 pop_front();
             }
         }
+    }
+    
+    template <typename T>
+    void veque<T>::resize( veque<T>::size_type count )
+    {
+        resize_back( count );
+    }
+    
+    
+    template <typename T>
+    void veque<T>::resize( veque<T>::size_type count, const T & value )
+    {
+        resize_back( count, value );
     }
     
     template <typename T>
