@@ -1,5 +1,5 @@
 # veque
-Efficient C++17 container combining the best features of std::vector and std::deque
+Efficient C++17 container combining the best features of `std::vector` and `std::deque`
 
 > "In Most Cases, Prefer Using deque (Controversial)"
 >
@@ -25,5 +25,5 @@ In addition, **veque** provides the following additional functions:
 
 ### To do:
 * GCC memory allocations are already _very aligned_, but code should explicitly demand correctly aligned memory.
-* Implement std::hash<veque>
+* Implement `std::hash<veque>`
 * Allocator support
