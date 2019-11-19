@@ -5,7 +5,7 @@ Efficient C++17 container combining the best features of `std::vector` and `std:
 >
 > -Herb Sutter, GotW #54
 
-As C++ has matured, `std::vector` has held its ground as a very popular container type.
+`std::vector` has maintained popular usage as a C++ standard container.  It's cache-friendly.  It maintains array layout.  Its iterator invalidation rules are somewhat complex, but developers have learned them.
 
 `std::deque`, however, has grown increasingly unpopular.  Nearly to the extent of `std::list`, and for similar reasons - it is non-contiguous and _very_ cache-unfriendly to iterate.
 
