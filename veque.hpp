@@ -108,7 +108,7 @@
         template <class ... Args> void emplace_front(Args && ... args);
         void pop_back();
         void pop_front();
-        // Resizes the veque, by adding or removing from the front.
+        // Resizes the veque, by adding or removing from the front. 
         void resize_front(size_type);
         void resize_front(size_type, const T &);
         // Resizes the veque, by adding or removing from the back.
@@ -125,11 +125,14 @@
         size_type _offset = 0;
         std::byte *_data = nullptr;
 
+        struct allocate_empty_tag {};
+        // Create an empty veque, with specified storage params
+        veque( allocate_empty_tag, size_type size );
+        // Create an empty veque, with specified storage params
+        veque( size_type allocated, size_type offset );
         // Move vector to new storage, with default capacity for current size
         void reallocate();
         void reallocate( size_type allocated, size_type offset );
-        // Create an empty veque, with specified storage params
-        veque( size_type _allocated, size_type _offset );
         // Insert empty space, choosing the most efficient way to shift existing elements
         iterator insert_empty_space( const_iterator it, size_type count );
         // Moves a valid subrange in the front direction.
@@ -350,10 +353,7 @@
 
     template <typename T>
     veque<T>::veque( veque<T>::size_type n )
-        : _size{ n }
-        , _allocated{ _size * 3 + 3 }
-        , _offset{ _size + 1 }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        : veque{ allocate_empty_tag{}, n }
     {
         for ( auto & val : *this )
         {
@@ -363,10 +363,7 @@
 
     template <typename T>
     veque<T>::veque(veque<T>::size_type n, const T &value)
-        : _size{ n }
-        , _allocated{ _size * 3 + 3 }
-        , _offset{ _size + 1 }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        : veque{ allocate_empty_tag{}, n }
     {
         for ( auto & val : *this )
         {
@@ -377,10 +374,7 @@
     template <typename T>
     template <typename InputIt>
     veque<T>::veque(InputIt first, InputIt last)
-        : _size{ std::distance(first,last) }
-        , _allocated{ _size * 3 + 3 }
-        , _offset{ _size + 1 }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        : veque{ allocate_empty_tag{}, std::distance(first,last) }
     {
         for ( auto & val : *this )
         {
@@ -391,10 +385,7 @@
 
     template <typename T>
     veque<T>::veque( std::initializer_list<T> lst )
-        : _size{ lst.size() }
-        , _allocated{ _size * 3 + 3 }
-        , _offset{ _size + 1 }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        : veque{ allocate_empty_tag{}, lst.size() }
     {
         auto first = lst.begin();
         for ( auto & val : *this )
@@ -429,6 +420,16 @@
         swap( other );
     }
      
+    // Private impl for setting up custom storage
+    template <typename T>
+    veque<T>::veque( allocate_empty_tag, size_type size )
+        : _size{ size }
+        , _allocated{ size * 3 + 3 }
+        , _offset{ size + 1 }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
+    {
+    }        
+        
     // Private impl for setting up custom storage
     template <typename T>
     veque<T>::veque( size_type _allocated, size_type _offset )
