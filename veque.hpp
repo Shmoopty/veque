@@ -413,7 +413,7 @@
         , _offset{ other._offset }
         , _data{ new std::byte[sizeof(T) * _allocated] }
     {
-        auto first = other.begin();
+        auto first = other.cbegin();
         for ( auto & val : *this )
         {
             new(&val) T(*first);
@@ -988,7 +988,7 @@
         {
             return false;
         }
-        return std::equal( lhs.begin(), lhs.end(), rhs.begin() );
+        return std::equal( lhs.cbegin(), lhs.cend(), rhs.cbegin() );
     }
 
     template <typename T>
@@ -1000,7 +1000,7 @@
     template <typename T>
     bool operator<(const veque<T> &lhs, const veque<T> &rhs)
     {
-        return std::lexicographical_compare( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
+        return std::lexicographical_compare( lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend() );
     }
 
     template <typename T>
