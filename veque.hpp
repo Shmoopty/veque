@@ -137,13 +137,13 @@
         // Vector will grow, if range moves past begin().
         // Vector will shrink if range includes end().
         // Returns iterator to beginning of destructed gap
-        iterator shift_front( iterator begin, iterator end, size_type count );
+        iterator shift_front( const_iterator begin, const_iterator end, size_type count );
         // Moves a range towards the back.  Vector will grow, if needed.  Vacated elements are destructed.
         // Moves a valid subrange in the back direction.
         // Vector will grow, if range moves past end().
         // Vector will shrink if range includes begin().
         // Returns iterator to beginning of destructed gap
-        iterator shift_back( iterator begin, iterator end, size_type count );
+        iterator shift_back( const_iterator begin, const_iterator end, size_type count );
     };
 
     template <typename T>
@@ -185,17 +185,19 @@
     }
     
     template <typename T>
-    typename veque<T>::iterator veque<T>::shift_front( veque<T>::iterator const b, veque<T>::iterator const e, veque<T>::size_type count )
+    typename veque<T>::iterator veque<T>::shift_front( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
     {
+        auto element_count = e - b;
+        auto start = begin() + std::distance(cbegin(),b); 
         if constexpr ( std::is_trivially_copyable_v<T> )
         {
-            std::memmove( b - count, b, count * sizeof(T) );
+            std::memmove( start - distance, start, element_count * sizeof(T) );
         }
-        else
+        else if ( element_count )
         {
-            auto src = b;
-            auto dest = src - count;
-            auto dest_construct_end = std::min( begin(), e - count );
+            auto src = start;
+            auto dest = src - distance;
+            auto dest_construct_end = std::min( cbegin(), e - distance );
             for ( ; dest < dest_construct_end; ++src, ++dest )
             {
                 // Move-construct any elements with destination before begin()
@@ -206,76 +208,76 @@
                 // Starting with begin(), move-assign
                 *dest = std::move(*src);
             }
-
-            auto new_elements_at_front = begin() - count + b;
-            auto range_includes_end = (e == end());
-
-            // If range moves before begin(), veque has grown
-            if ( new_elements_at_front > 0 )
-            {
-                _offset -= new_elements_at_front;
-                _size += new_elements_at_front;
-            }
-
-            // If range includes end(), veque has shrunk
-            if ( range_includes_end )
-            {
-                _size -= count;
-            }
-
-            for ( auto i = e; i != e - count; --i )
+            for ( auto i = e; i != e - element_count; --i )
             {
                 i->~T();
             }
         }
-        return b - count;
+        auto new_elements_at_front = cbegin() - b + distance;
+        auto range_includes_end = (e == end());
+
+        // If range moves before begin(), veque has grown
+        if ( new_elements_at_front > 0 )
+        {
+            _offset -= new_elements_at_front;
+            _size += new_elements_at_front;
+        }
+
+        // If range includes end(), veque has shrunk
+        if ( range_includes_end )
+        {
+            _size -= distance;
+        }
+
+        return start - distance;
     }
     
     template <typename T>
-    typename veque<T>::iterator veque<T>::shift_back( veque<T>::iterator b, veque<T>::iterator e, veque<T>::size_type count )
+    typename veque<T>::iterator veque<T>::shift_back( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
     {
+        auto element_count = e - b;
+        auto start = begin() + std::distance(cbegin(),b); 
         if constexpr ( std::is_trivially_copyable_v<T> )
         {
-            std::memmove( b + count, b, count * sizeof(T) );
+            std::memmove( start + distance, start, element_count * sizeof(T) );
         }
-        else
+        else if ( element_count )
         {
-            auto src = e;
-            auto dest = src + count;
-            auto dest_construct_end = std::max( end() - 1, b + count - 1 );
-            for ( ; dest < dest_construct_end; --src, --dest )
+            auto src = begin() + std::distance( cbegin(), e-1 );
+            auto dest = src + distance;
+            auto dest_construct_end = std::max( end()-1, dest - element_count );
+            for ( ; dest > dest_construct_end; --src, --dest )
             {
                 // Move-construct any elements with destination at or after end()
                 new(dest) T(std::move(*src));
             }
-            for ( ; src != end; --src, --dest )
+            for ( ; src != b-1; --src, --dest )
             {
                 // Before end(), move-assign
                 *dest = std::move(*src);
             }
-
-            auto new_elements_at_back = end() + count - e;
-            auto range_includes_begin = (b == begin());
-
-            // If range includes begin(), veque has shrunk
-            if ( range_includes_begin )
-            {
-                _offset += count;
-                _size -= count;
-            }
-
-            // If range moves before begin(), veque has grown
-            if ( new_elements_at_back > 0 )
-            {
-                _size += new_elements_at_back;
-            }
-
-            for ( auto i = b; i != b + count; ++i )
+            for ( auto i = b; i != b + element_count; ++i )
             {
                 i->~T();
             }
         }
-        return b;
+        auto new_elements_at_back = end() + distance - e;
+        auto range_includes_begin = (b == begin());
+
+        // If range includes begin(), veque has shrunk
+        if ( range_includes_begin )
+        {
+            _offset += distance;
+            _size -= distance;
+        }
+
+        // If range moves before begin(), veque has grown
+        if ( new_elements_at_back > 0 )
+        {
+            _size += new_elements_at_back;
+        }
+        
+        return start;
     }
 
     template <typename T>
@@ -312,16 +314,16 @@
         {
             // Insufficient capacity.  Allocate new storage.
             veque<T> other( required_size * 3, required_size );
+            auto index = std::distance( cbegin(), it );
             if constexpr ( std::is_trivially_copyable_v<T> )
             {
-                auto before_count = std::distance( begin(), it );
-                auto after_count = std::distance( it, end() );
+                auto before_count = std::distance( cbegin(), it );
+                auto after_count = std::distance( it, cend() );
                 std::memcpy( other.begin(), begin(), before_count * sizeof(T) );
                 std::memcpy( other.begin() + before_count + count, it, after_count * sizeof(T) );
             }
             else
             {
-                auto index = it - begin();
                 auto dest = other.begin();
                 for ( auto src = begin(); src != it; ++src )
                 {
@@ -879,58 +881,60 @@
     template <class ... Args>
     typename veque<T>::iterator veque<T>::emplace( typename veque<T>::const_iterator it, Args && ... args )
     {
-        it = insert_empty_space( it, 1 );
+        auto res = insert_empty_space( it, 1 );
         new (it) T( std::forward<Args>(args)... );
-        return it;
+        return res;
     }
     
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, const T &val )
     {
-        it = insert_empty_space( it, 1 );
+        auto res = insert_empty_space( it, 1 );
         new (it) T( val );
-        return it;
+        return res;
     }
 
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, T &&val )
     {
-        it = insert_empty_space( it, 1 );
+        auto res = insert_empty_space( it, 1 );
         new (it) T( std::move(val) );
-        return it;
+        return res;
     }
 
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it,  veque<T>::size_type cnt, const T &val )
     {
-        it = insert_empty_space( it, cnt );
+        auto res = insert_empty_space( it, cnt );
         for ( iterator i = it; i != it + cnt; ++i)
             new(i) T(val);
-        return it;
+        return res;
     }
 
     template <typename T>
     template <class InputIt>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, InputIt first, InputIt last )
     {
-        auto dest = insert_empty_space( it, std::distance(first,last) );
+        auto res = insert_empty_space( it, std::distance(first,last) );
+        auto dest = res;
         for ( auto src = first; src != last; ++src, ++dest)
         {
             new(dest) T(*src);
         }
-        return it;
+        return res;
     }
 
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, std::initializer_list<T> lst )
     {
-        auto dest = insert_empty_space( it, lst.size() );
+        auto res = insert_empty_space( it, lst.size() );
+        auto dest = res;
         for ( auto && src : lst  )
         {
             new(dest) T(src);
             ++dest;
         }
-        return it;
+        return res;
     }
 
     template <typename T>
