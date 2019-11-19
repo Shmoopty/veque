@@ -127,11 +127,11 @@
         size_type _offset = 0;
         std::byte *_data = nullptr;
 
-        struct allocate_empty_tag {};
+        struct allocate_uninitialized_tag {};
 
         void swap(veque<T> &&);
         // Create an empty veque, with specified storage params
-        veque( allocate_empty_tag, size_type size );
+        veque( allocate_uninitialized_tag, size_type size );
         // Create an empty veque, with specified storage params
         veque( size_type allocated, size_type offset );
         // Move vector to new storage, with default capacity for current size
@@ -214,10 +214,11 @@
                 // Move-assign to destinations at or after begin()
                 *dest = std::move(*src);
             }
-            for ( auto i = start; i != start + element_count; ++i )
-            {
-                i->~T();
-            }
+        }
+        auto destruct_end = std::max( cbegin() - 1, e - 1 - distance );
+        for ( auto i = e - 1; i != destruct_end; --i )
+        {
+            i->~T();
         }
         difference_type new_elements_at_front = cbegin() - b + distance;
         auto range_includes_end = (e == end());
@@ -261,11 +262,13 @@
                 // Move-assign to destinations before before end()
                 *dest = std::move(*src);
             }
-            for ( auto i = b; i != b + element_count; ++i )
-            {
-                i->~T();
-            }
         }
+        auto destruct_end = std::min( cend(), b + distance );
+        for ( auto i = b; i != destruct_end; ++i )
+        {
+            i->~T();
+        }
+        
         difference_type new_elements_at_back = e - end() + distance;
         auto range_includes_begin = (b == begin());
 
@@ -357,45 +360,45 @@
 
     template <typename T>
     veque<T>::veque( veque<T>::size_type n )
-        : veque{ allocate_empty_tag{}, n }
+        : veque{ allocate_uninitialized_tag{}, n }
     {
-        for ( auto & val : *this )
+        for ( auto && dest : *this )
         {
-            new(&val) T();
+            new(&dest) T();
         }
     }
 
     template <typename T>
     veque<T>::veque(veque<T>::size_type n, const T &value)
-        : veque{ allocate_empty_tag{}, n }
+        : veque{ allocate_uninitialized_tag{}, n }
     {
-        for ( auto & val : *this )
+        for ( auto && dest : *this )
         {
-            new(&val) T(value);
+            new(&dest) T(value);
         }
     }
 
     template <typename T>
     template <typename InputIt>
     veque<T>::veque(InputIt first, InputIt last)
-        : veque{ allocate_empty_tag{}, veque<T>::size_type(std::distance(first,last)) }
+        : veque{ allocate_uninitialized_tag{}, veque<T>::size_type(std::distance(first,last)) }
     {
-        for ( auto & val : *this )
+        for ( auto && dest : *this )
         {
-            new(&val) T(*first);
+            new(&dest) T(*first);
             ++first;
         }
     }
 
     template <typename T>
     veque<T>::veque( std::initializer_list<T> lst )
-        : veque{ allocate_empty_tag{}, lst.size() }
+        : veque{ allocate_uninitialized_tag{}, lst.size() }
     {
-        auto first = lst.begin();
-        for ( auto & val : *this )
+        auto dest = begin();
+        for ( auto && src : lst )
         {
-            new(&val) T(*first);
-            ++first;
+            new(dest) T(src);
+            ++dest;
         }
     }
 
@@ -407,7 +410,7 @@
         , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * _allocated ) ) }
     {
         auto first = other.cbegin();
-        for ( auto & val : *this )
+        for ( auto && val : *this )
         {
             new(&val) T(*first);
             ++first;
@@ -426,7 +429,7 @@
      
     // Private impl for setting up custom storage
     template <typename T>
-    veque<T>::veque( allocate_empty_tag, size_type size )
+    veque<T>::veque( allocate_uninitialized_tag, size_type size )
         : _size{ size }
         , _allocated{ size * 3 + 3 }
         , _offset{ size + 1 }
@@ -447,7 +450,7 @@
     template <typename T>
     veque<T>::~veque()
     {
-        for ( auto & val : *this )
+        for ( auto && val : *this )
         {
             val.~T();
         }
@@ -490,7 +493,7 @@
     template <typename T>
     void veque<T>::assign(std::initializer_list<T> lst)
     {
-        *this = lst;
+        swap( veque<T>(lst) );
     }
 
     template <typename T>
@@ -605,10 +608,11 @@
         }
         else
         {
-            while ( size() != count )
+            for ( auto i = begin() + count; i != end(); ++i )
             {
-                pop_back();
+                i->~T();
             }
+            _size = count;
         }
     }
 
@@ -628,10 +632,11 @@
         }
         else
         {
-            while ( size() != count )
+            for ( auto i = begin() + count; i != end(); ++i )
             {
-                pop_back();
+                i->~T();
             }
+            _size = count;
         }
     }
 
@@ -986,7 +991,7 @@
     template <typename T>
     void veque<T>::clear() noexcept
     {
-        for ( auto &val : *this )
+        for ( auto && val : *this )
         {
             val.~T();
         }
