@@ -33,6 +33,7 @@
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
         using difference_type = std::ptrdiff_t;
         using size_type = std::size_t;
+        using ssize_type = std::ptrdiff_t;
 
         // Common member functions
         veque() noexcept;
@@ -76,6 +77,7 @@
         // Capacity
         bool empty() const noexcept;
         size_type size() const noexcept;
+        ssize_type ssize() const noexcept;
         size_type max_size() const noexcept;
         void reserve(size_type);
         void reserve_front(size_type);
@@ -202,20 +204,20 @@
             auto dest_construct_end = std::min( cbegin(), e - distance );
             for ( ; dest < dest_construct_end; ++src, ++dest )
             {
-                // Move-construct any elements with destination before begin()
+                // Move-construct to destinations before begin()
                 new(dest) T(std::move(*src));
             }
             for ( ; src != e; ++src, ++dest )
             {
-                // Starting with begin(), move-assign
+                // Move-assign to destinations at or after begin()
                 *dest = std::move(*src);
             }
-            for ( auto i = e; i != e - element_count; --i )
+            for ( auto i = start; i != start + element_count; ++i )
             {
                 i->~T();
             }
         }
-        auto new_elements_at_front = cbegin() - b + distance;
+        difference_type new_elements_at_front = cbegin() - b + distance;
         auto range_includes_end = (e == end());
 
         // If range includes end(), veque has shrunk
@@ -249,12 +251,12 @@
             auto dest_construct_end = std::max( end()-1, dest - element_count );
             for ( ; dest > dest_construct_end; --src, --dest )
             {
-                // Move-construct any elements with destination at or after end()
+                // Move-construct to destinations at or after end()
                 new(dest) T(std::move(*src));
             }
             for ( ; src != b-1; --src, --dest )
             {
-                // Before end(), move-assign
+                // Move-assign to destinations before before end()
                 *dest = std::move(*src);
             }
             for ( auto i = b; i != b + element_count; ++i )
@@ -262,7 +264,7 @@
                 i->~T();
             }
         }
-        auto new_elements_at_back = end() + distance - e;
+        difference_type new_elements_at_back = e - end() + distance;
         auto range_includes_begin = (b == begin());
 
         // If range moves before begin(), veque has grown
@@ -374,7 +376,7 @@
     template <typename T>
     template <typename InputIt>
     veque<T>::veque(InputIt first, InputIt last)
-        : veque{ allocate_empty_tag{}, std::distance(first,last) }
+        : veque{ allocate_empty_tag{}, veque<T>::size_type(std::distance(first,last)) }
     {
         for ( auto & val : *this )
         {
@@ -468,7 +470,8 @@
     template <typename T>
     veque<T> & veque<T>::operator=( std::initializer_list<T> lst )
     {
-        swap( veque<T>(lst) );
+        auto swappable = veque<T>(lst);
+        swap( swappable );
         return *this;
     }
 
@@ -481,7 +484,8 @@
     template <typename T>
     void veque<T>::assign( typename veque<T>::iterator first, veque<T>::iterator last )
     {
-        swap( veque<T>(first,last) );
+        auto swappable = veque<T>(first,last);
+        swap( swappable );
     }
 
     template <typename T>
@@ -551,9 +555,15 @@
     }
 
     template <typename T>
+    typename veque<T>::ssize_type veque<T>::ssize() const noexcept
+    {
+        return _size;
+    }
+
+    template <typename T>
     typename veque<T>::size_type veque<T>::max_size() const noexcept
     {
-        return std::numeric_limits<size_type>::max();
+        return std::numeric_limits<ssize_type>::max();
     }
 
     template <typename T>
@@ -951,13 +961,11 @@
         auto count = std::distance( first, last );
         if (  elements_before < elements_after )
         {
-            shift_back( begin(), first, count );
-            return last;
+            return shift_back( begin(), first, count );
         }
         else
         {
-            shift_front( last, end(), count );
-            return first;
+            return shift_front( last, end(), count );
         }
     }
 
