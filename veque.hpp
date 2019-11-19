@@ -134,31 +134,31 @@
         // Create an empty veque, with specified storage params
         veque( size_type allocated, size_type offset );
         // Destroy elements in range
-        void destroy( const_iterator begin, const_iterator end );
+        void priv_destroy( const_iterator begin, const_iterator end );
         // Construct elements in range
         template< typename ...Args >
-        void construct( const_iterator begin, const_iterator end, const Args & ...args );
+        void priv_construct( const_iterator begin, const_iterator end, const Args & ...args );
         
         // Move vector to new storage, with default capacity for current size
-        void reallocate();
-        void reallocate( size_type allocated, size_type offset );
+        void priv_reallocate();
+        void priv_reallocate( size_type allocated, size_type offset );
         // Insert empty space, choosing the most efficient way to shift existing elements
-        iterator insert_empty_space( const_iterator it, size_type count );
+        iterator priv_insert_storage( const_iterator it, size_type count );
         // Moves a valid subrange in the front direction.
         // Vector will grow, if range moves past begin().
         // Vector will shrink if range includes end().
         // Returns iterator to beginning of destructed gap
-        iterator shift_front( const_iterator begin, const_iterator end, size_type count );
+        iterator priv_shift_front( const_iterator begin, const_iterator end, size_type count );
         // Moves a range towards the back.  Vector will grow, if needed.  Vacated elements are destructed.
         // Moves a valid subrange in the back direction.
         // Vector will grow, if range moves past end().
         // Vector will shrink if range includes begin().
         // Returns iterator to beginning of destructed gap
-        iterator shift_back( const_iterator begin, const_iterator end, size_type count );
+        iterator priv_shift_back( const_iterator begin, const_iterator end, size_type count );
     };
 
     template <typename T>
-    void veque<T>::destroy( const_iterator b, const_iterator e )
+    void veque<T>::priv_destroy( const_iterator b, const_iterator e )
     {
         for ( auto i = b; i != e; ++i )
         {
@@ -168,7 +168,7 @@
 
     template <typename T>
     template< typename ...Args >
-    void veque<T>::construct( const_iterator b, const_iterator e, const Args & ...args )
+    void veque<T>::priv_construct( const_iterator b, const_iterator e, const Args & ...args )
     {
         for ( auto i = begin() + std::distance(cbegin(),b); i != e; ++i )
         {
@@ -177,13 +177,13 @@
     }
 
     template <typename T>
-    void veque<T>::reallocate()
+    void veque<T>::priv_reallocate()
     {
-        reallocate( 3 * size() + 3, size() + 1 );
+        priv_reallocate( 3 * size() + 3, size() + 1 );
     }
     
     template <typename T>
-    void veque<T>::reallocate( veque<T>::size_type allocated, veque<T>::size_type offset  )
+    void veque<T>::priv_reallocate( veque<T>::size_type allocated, veque<T>::size_type offset  )
     {
         auto other = veque<T>( allocated, offset );
 
@@ -215,7 +215,7 @@
     }
     
     template <typename T>
-    typename veque<T>::iterator veque<T>::shift_front( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
+    typename veque<T>::iterator veque<T>::priv_shift_front( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
     {
         auto element_count = e - b;
         auto start = begin() + std::distance(cbegin(),b); 
@@ -230,7 +230,7 @@
             auto dest_construct_end = std::min( cbegin(), e - distance );
             for ( ; dest < dest_construct_end; ++src, ++dest )
             {
-                // Move-construct to destinations before begin()
+                // Move-priv_construct to destinations before begin()
                 new(dest) T(std::move(*src));
             }
             for ( ; src != e; ++src, ++dest )
@@ -239,7 +239,7 @@
                 *dest = std::move(*src);
             }
         }
-        destroy( std::max( cbegin(), e - distance ), e );
+        priv_destroy( std::max( cbegin(), e - distance ), e );
         difference_type new_elements_at_front = cbegin() - b + distance;
         auto range_includes_end = (e == end());
 
@@ -259,7 +259,7 @@
     }
     
     template <typename T>
-    typename veque<T>::iterator veque<T>::shift_back( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
+    typename veque<T>::iterator veque<T>::priv_shift_back( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
     {
         auto element_count = e - b;
         auto start = begin() + std::distance(cbegin(),b); 
@@ -274,7 +274,7 @@
             auto dest_construct_end = std::max( end()-1, dest - element_count );
             for ( ; dest > dest_construct_end; --src, --dest )
             {
-                // Move-construct to destinations at or after end()
+                // Move-priv_construct to destinations at or after end()
                 new(dest) T(std::move(*src));
             }
             for ( ; src != b-1; --src, --dest )
@@ -283,7 +283,7 @@
                 *dest = std::move(*src);
             }
         }
-        destroy( b, std::min( cend(), b + distance ) );
+        priv_destroy( b, std::min( cend(), b + distance ) );
         
         difference_type new_elements_at_back = e - end() + distance;
         auto range_includes_begin = (b == begin());
@@ -305,7 +305,7 @@
     }
 
     template <typename T>
-    typename veque<T>::iterator veque<T>::insert_empty_space(typename veque<T>::const_iterator it, size_type count)
+    typename veque<T>::iterator veque<T>::priv_insert_storage(typename veque<T>::const_iterator it, size_type count)
     {
         auto required_size = size() + count;
         auto can_shift_back = capacity_back() >= required_size;
@@ -317,22 +317,22 @@
             // Choose the direction with the fewest moves.
             if ( it - begin() < size() / 2 )
             {
-                return shift_front( begin(), it, count );
+                return priv_shift_front( begin(), it, count );
             }
             else
             {
-                return shift_back( it, end(), count );
+                return priv_shift_back( it, end(), count );
             }
         }
         else if ( can_shift_back )
         {
             // Capacity only allows shifting back.
-            return shift_back( it, end(), count );
+            return priv_shift_back( it, end(), count );
         }
         else if ( can_shift_front )
         {
             // Capacity only allows shifting front.
-            return shift_front( begin(), it, count );
+            return priv_shift_front( begin(), it, count );
         }
         else
         {
@@ -378,14 +378,14 @@
     veque<T>::veque( veque<T>::size_type n )
         : veque{ allocate_uninitialized_tag{}, n }
     {
-        construct( begin(), end() );
+        priv_construct( begin(), end() );
     }
 
     template <typename T>
     veque<T>::veque(veque<T>::size_type n, const T &value)
         : veque{ allocate_uninitialized_tag{}, n }
     {
-        construct( begin(), end(), value );
+        priv_construct( begin(), end(), value );
     }
 
     template <typename T>
@@ -460,7 +460,7 @@
     template <typename T>
     veque<T>::~veque()
     {
-        destroy( begin(), end() );
+        priv_destroy( begin(), end() );
         std::free( _data ); 
     }
 
@@ -606,13 +606,13 @@
         {
             if ( count > capacity_back() )
             {
-                reallocate( count * 3, count );
+                priv_reallocate( count * 3, count );
             }
-            construct( end(), begin() + count );
+            priv_construct( end(), begin() + count );
         }
         else
         {
-            destroy( begin() + count, end() );
+            priv_destroy( begin() + count, end() );
         }
         _size = count;
     }
@@ -624,13 +624,13 @@
         {
             if ( count > capacity_back() )
             {
-                reallocate( count * 3, count );
+                priv_reallocate( count * 3, count );
             }
-            construct( end(), begin() + count, value );
+            priv_construct( end(), begin() + count, value );
         }
         else
         {
-            destroy( begin() + count, end() );
+            priv_destroy( begin() + count, end() );
         }
         _size = count;
     }
@@ -644,13 +644,13 @@
         {
             if ( count > capacity_front() )
             {
-                reallocate( count * 3, count );
+                priv_reallocate( count * 3, count );
             }
-            construct( new_begin, begin() );
+            priv_construct( new_begin, begin() );
         }
         else
         {
-            destroy( begin(), new_begin );
+            priv_destroy( begin(), new_begin );
         }
         _size = count;
         _offset -= delta;
@@ -665,13 +665,13 @@
         {
             if ( count > capacity_front() )
             {
-                reallocate( count * 3, count );
+                priv_reallocate( count * 3, count );
             }
-            construct( new_begin, begin(), value );
+            priv_construct( new_begin, begin(), value );
         }
         else
         {
-            destroy( begin(), new_begin );
+            priv_destroy( begin(), new_begin );
         }
         _size = count;
         _offset -= delta;
@@ -695,7 +695,7 @@
     {
         if ( count > capacity_front() )
         {
-            reallocate( size() * 2 + count, count );
+            priv_reallocate( size() * 2 + count, count );
         }
     }
 
@@ -704,7 +704,7 @@
     {
         if ( count > capacity_back() )
         {
-            reallocate( size() * 2 + count, size() );
+            priv_reallocate( size() * 2 + count, size() );
         }
     }
 
@@ -715,7 +715,7 @@
         {
             auto front_unallocated = std::max( capacity_front(), count ) - size();
             auto back_unallocated = std::max( capacity_back(), count ) - size();
-            reallocate( front_unallocated + size() + back_unallocated, front_unallocated );
+            priv_reallocate( front_unallocated + size() + back_unallocated, front_unallocated );
         }
     }
 
@@ -724,7 +724,7 @@
     {
         if ( size() < capacity_front() || size() < capacity_back() )
         {
-            reallocate( size(), size() );
+            priv_reallocate( size(), size() );
         }
     }
 
@@ -802,7 +802,7 @@
     {
         if ( size() == capacity_back() )
         {
-            reallocate();
+            priv_reallocate();
         }
         ++_size;
         new(&back()) T(std::forward<Args>(args)...);
@@ -813,7 +813,7 @@
     {
         if ( size() == capacity_back() )
         {
-            reallocate();
+            priv_reallocate();
         }
         ++_size;
         new(&back()) T(val);
@@ -824,7 +824,7 @@
     {
         if ( size() == capacity_back() )
         {
-            reallocate();
+            priv_reallocate();
         }
         ++_size;
         new(&back()) T(std::move(val));
@@ -843,7 +843,7 @@
     {
         if ( size() == capacity_front() )
         {
-            reallocate();
+            priv_reallocate();
         }
         ++_size;
         --_offset;
@@ -855,7 +855,7 @@
     {
         if ( size() == capacity_front() )
         {
-            reallocate();
+            priv_reallocate();
         }
         ++_size;
         --_offset;
@@ -867,7 +867,7 @@
     {
         if ( size() == capacity_front() )
         {
-            reallocate();
+            priv_reallocate();
         }
         ++_size;
         --_offset;
@@ -886,7 +886,7 @@
     template <class ... Args>
     typename veque<T>::iterator veque<T>::emplace( typename veque<T>::const_iterator it, Args && ... args )
     {
-        auto res = insert_empty_space( it, 1 );
+        auto res = priv_insert_storage( it, 1 );
         new (res) T( std::forward<Args>(args)... );
         return res;
     }
@@ -894,7 +894,7 @@
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, const T &val )
     {
-        auto res = insert_empty_space( it, 1 );
+        auto res = priv_insert_storage( it, 1 );
         new (res) T( val );
         return res;
     }
@@ -902,7 +902,7 @@
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, T &&val )
     {
-        auto res = insert_empty_space( it, 1 );
+        auto res = priv_insert_storage( it, 1 );
         new (res) T( std::move(val) );
         return res;
     }
@@ -910,7 +910,7 @@
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it,  veque<T>::size_type cnt, const T &val )
     {
-        auto res = insert_empty_space( it, cnt );
+        auto res = priv_insert_storage( it, cnt );
         for ( iterator i = res; i != res + cnt; ++i)
             new(i) T(val);
         return res;
@@ -920,7 +920,7 @@
     template <class InputIt>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, InputIt first, InputIt last )
     {
-        auto res = insert_empty_space( it, std::distance(first,last) );
+        auto res = priv_insert_storage( it, std::distance(first,last) );
         auto dest = res;
         for ( auto src = first; src != last; ++src, ++dest)
         {
@@ -932,7 +932,7 @@
     template <typename T>
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, std::initializer_list<T> lst )
     {
-        auto res = insert_empty_space( it, lst.size() );
+        auto res = priv_insert_storage( it, lst.size() );
         auto dest = res;
         for ( auto && src : lst  )
         {
@@ -956,11 +956,11 @@
         auto count = std::distance( first, last );
         if (  elements_before < elements_after )
         {
-            return shift_back( begin(), first, count );
+            return priv_shift_back( begin(), first, count );
         }
         else
         {
-            return shift_front( last, end(), count );
+            return priv_shift_front( last, end(), count );
         }
     }
 
@@ -976,7 +976,7 @@
     template <typename T>
     void veque<T>::clear() noexcept
     {
-        destroy( begin(), end() );
+        priv_destroy( begin(), end() );
         _size = 0;
         _offset = _allocated / 2;
     }
