@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -21,7 +22,7 @@
     template <typename T>
     class veque {
     public:
-        // types:
+        // Types
         using value_type = T;
         using reference = T &;
         using const_reference = const T &;
@@ -38,7 +39,8 @@
         veque() noexcept;
         explicit veque(size_type n);
         veque(size_type n, const T &val);
-        veque(typename veque<T>::iterator first,  veque<T>::iterator last);
+        template <typename InputIt>
+        veque(InputIt first,  InputIt last);
         veque(std::initializer_list<T>);
         veque(const veque<T> &);
         veque(veque<T> &&) noexcept;
@@ -120,162 +122,251 @@
 
     private:
         size_type _size = 0;
-        size_type reserved = 12;
+        size_type _allocated = 0;
         size_type _offset = 0;
         std::byte *_data = nullptr;
 
+        // Move vector to new storage, with default capacity for current size
+        void reallocate();
+        void reallocate( size_type allocated, size_type offset );
         // Create an empty veque, with specified storage params
-        veque( size_type reserved, size_type _offset );
+        veque( size_type _allocated, size_type _offset );
         // Insert empty space, choosing the most efficient way to shift existing elements
         iterator insert_empty_space( const_iterator it, size_type count );
-        // Moves a range towards the front.  Vector will grow, if needed.  Vacated elements are destructed.
-        void shift_front( iterator begin, iterator end, size_type count );
+        // Moves a valid subrange in the front direction.
+        // Vector will grow, if range moves past begin().
+        // Vector will shrink if range includes end().
+        // Returns iterator to beginning of destructed gap
+        iterator shift_front( iterator begin, iterator end, size_type count );
         // Moves a range towards the back.  Vector will grow, if needed.  Vacated elements are destructed.
-        void shift_back( iterator begin, iterator end, size_type count );
+        // Moves a valid subrange in the back direction.
+        // Vector will grow, if range moves past end().
+        // Vector will shrink if range includes begin().
+        // Returns iterator to beginning of destructed gap
+        iterator shift_back( iterator begin, iterator end, size_type count );
     };
 
     template <typename T>
-    void veque<T>::shift_front( veque<T>::iterator b, veque<T>::iterator e, veque<T>::size_type count )
+    void veque<T>::reallocate()
     {
-        for ( auto i = b; i != e; ++i )
-        {
-            auto dest = i - count;
-            if ( dest < begin() )
-            {
-                new(dest) T(std::move(*i));
-            }
-            else
-            {
-                *dest = std::move(*i);
-            }
-        }
-        
-        auto new_elements_at_front = b - begin() + count;
-        if ( new_elements_at_front > 0 )
-        {
-            _offset -= new_elements_at_front;
-            _size += new_elements_at_front;
-        }
-        
-        if ( e == end() )
-        {
-            _size -= count;
-        }
-
-        for ( auto i = e; i != e - count; --i )
-        {
-            i->~T();
-        }
+        reallocate( 3 * size() + 3, size() + 1 );
     }
-
+    
     template <typename T>
-    void veque<T>::shift_back( veque<T>::iterator b, veque<T>::iterator e, veque<T>::size_type count )
+    void veque<T>::reallocate( veque<T>::size_type allocated, veque<T>::size_type offset  )
     {
-        for ( auto i = e - 1; i != b - 1; --i )
+        auto other = veque<T>( allocated, offset );
+
+        if ( size() )
         {
-            auto dest = i + count;
-            if ( dest >= end() )
+            if constexpr ( std::is_trivially_copyable_v<T> )
             {
-                new(dest) T(std::move(*i));
+                std::memcpy( other.begin(), begin(), size() * sizeof(T) );
             }
             else
             {
-                *dest = std::move(*i);
+                auto dest = other.begin();
+                for ( auto & value : *this )
+                {
+                    if constexpr ( std::is_nothrow_move_constructible_v<T> )
+                    {
+                        new(dest) T(std::move(value));
+                    }
+                    else
+                    {
+                        new(dest) T(value);
+                    }
+                    ++dest;
+                }
             }
         }
-        
-        if ( b == begin() )
+        other._size = _size;
+        swap( other );
+    }
+    
+    template <typename T>
+    typename veque<T>::iterator veque<T>::shift_front( veque<T>::iterator const b, veque<T>::iterator const e, veque<T>::size_type count )
+    {
+        if constexpr ( std::is_trivially_copyable_v<T> )
         {
-            _offset += count;
-            _size -= count;
+            std::memmove( b - count, b, count * sizeof(T) );
         }
-        
-        auto new_elements_at_end = end() - e + count;
-        if ( new_elements_at_end > 0 )
+        else
         {
-            _size += new_elements_at_end;
-        }
+            auto src = b;
+            auto dest = src - count;
+            auto dest_construct_end = std::min( begin(), e - count );
+            for ( ; dest < dest_construct_end; ++src, ++dest )
+            {
+                // Move-construct any elements with destination before begin()
+                new(dest) T(std::move(*src));
+            }
+            for ( ; src != e; ++src, ++dest )
+            {
+                // Starting with begin(), move-assign
+                *dest = std::move(*src);
+            }
 
-        for ( auto i = b; i != b + count; ++i )
-        {
-            i->~T();
+            auto new_elements_at_front = begin() - count + b;
+            auto range_includes_end = (e == end());
+
+            // If range moves before begin(), veque has grown
+            if ( new_elements_at_front > 0 )
+            {
+                _offset -= new_elements_at_front;
+                _size += new_elements_at_front;
+            }
+
+            // If range includes end(), veque has shrunk
+            if ( range_includes_end )
+            {
+                _size -= count;
+            }
+
+            for ( auto i = e; i != e - count; --i )
+            {
+                i->~T();
+            }
         }
+        return b - count;
+    }
+    
+    template <typename T>
+    typename veque<T>::iterator veque<T>::shift_back( veque<T>::iterator b, veque<T>::iterator e, veque<T>::size_type count )
+    {
+        if constexpr ( std::is_trivially_copyable_v<T> )
+        {
+            std::memmove( b + count, b, count * sizeof(T) );
+        }
+        else
+        {
+            auto src = e;
+            auto dest = src + count;
+            auto dest_construct_end = std::max( end() - 1, b + count - 1 );
+            for ( ; dest < dest_construct_end; --src, --dest )
+            {
+                // Move-construct any elements with destination at or after end()
+                new(dest) T(std::move(*src));
+            }
+            for ( ; src != end; --src, --dest )
+            {
+                // Before end(), move-assign
+                *dest = std::move(*src);
+            }
+
+            auto new_elements_at_back = end() + count - e;
+            auto range_includes_begin = (b == begin());
+
+            // If range includes begin(), veque has shrunk
+            if ( range_includes_begin )
+            {
+                _offset += count;
+                _size -= count;
+            }
+
+            // If range moves before begin(), veque has grown
+            if ( new_elements_at_back > 0 )
+            {
+                _size += new_elements_at_back;
+            }
+
+            for ( auto i = b; i != b + count; ++i )
+            {
+                i->~T();
+            }
+        }
+        return b;
     }
 
     template <typename T>
     typename veque<T>::iterator veque<T>::insert_empty_space(typename veque<T>::const_iterator it, size_type count)
     {
-        if ( capacity_back() >= size() + count )
+        auto required_size = size() + count;
+        auto can_shift_back = capacity_back() >= required_size;
+        auto can_shift_front = capacity_front() >= required_size;
+        
+        if ( can_shift_back && can_shift_front)
         {
-            if ( capacity_front() >= size() + count )
+            // Capacity allows shifting in either direction.
+            // Choose the direction with the fewest moves.
+            if ( it - begin() < size() / 2 )
             {
-                if ( it - begin() < size() / 2 )
-                {
-                    shift_front( begin(), it, count );
-                }
-                else
-                {
-                    shift_back( it, end(), count );
-                }
+                return shift_front( begin(), it, count );
             }
             else
             {
-                shift_back( it, end(), count );
+                return shift_back( it, end(), count );
             }
         }
-        else if ( capacity_front() >= size() + count )
+        else if ( can_shift_back )
         {
-            shift_front( begin(), it, count );
+            // Capacity only allows shifting back.
+            return shift_back( it, end(), count );
+        }
+        else if ( can_shift_front )
+        {
+            // Capacity only allows shifting front.
+            return shift_front( begin(), it, count );
         }
         else
         {
-            auto new_size = size() + 1;
-            auto index = it - begin();
-            veque<T> other( new_size * 3, new_size );
-            auto dest = other.begin();
-            for ( auto src = begin(); src != it; ++src )
+            // Insufficient capacity.  Allocate new storage.
+            veque<T> other( required_size * 3, required_size );
+            if constexpr ( std::is_trivially_copyable_v<T> )
             {
-                new(dest) T(std::move(*src));
-                ++dest;
+                auto before_count = std::distance( begin(), it );
+                auto after_count = std::distance( it, end() );
+                std::memcpy( other.begin(), begin(), before_count * sizeof(T) );
+                std::memcpy( other.begin() + before_count + count, it, after_count * sizeof(T) );
             }
-            dest += count;
-            for ( auto src = it; src != end(); ++src )
+            else
             {
-                new(dest) T(std::move(*src));
-                ++dest;
+                auto index = it - begin();
+                auto dest = other.begin();
+                for ( auto src = begin(); src != it; ++src )
+                {
+                    new(dest) T(std::move(*src));
+                    ++dest;
+                }
+                dest += count;
+                for ( auto src = it; src != end(); ++src )
+                {
+                    new(dest) T(std::move(*src));
+                    ++dest;
+                }
             }
-            other._size = new_size;
+            other._size = required_size;
             swap(other);
             return begin() + index;
         }
-        return it;
     }
     
     template <typename T>
+    
     veque<T>::veque() noexcept
-        : _data { new std::byte[sizeof(T) * reserved] }
+        : _data { new std::byte[sizeof(T) * _allocated] }
     {
     }
 
     template <typename T>
     veque<T>::veque( veque<T>::size_type n )
         : _size{ n }
-        , reserved{ _size * 3 }
-        , _offset{ _size }
-        , _data{ new std::byte[sizeof(T) * reserved] }
+        , _allocated{ _size * 3 + 3 }
+        , _offset{ _size + 1 }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
     {
         for ( auto & val : *this )
         {
-            new(&val) T;
+            new(&val) T();
         }
     }
 
     template <typename T>
     veque<T>::veque(veque<T>::size_type n, const T &value)
         : _size{ n }
-        , reserved{ _size * 3 }
-        , _offset{ _size }
-        , _data{ new std::byte[sizeof(T) * reserved] }
+        , _allocated{ _size * 3 + 3 }
+        , _offset{ _size + 1 }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
     {
         for ( auto & val : *this )
         {
@@ -284,11 +375,12 @@
     }
 
     template <typename T>
-    veque<T>::veque(veque<T>::iterator first, veque<T>::iterator last)
-        : _size{ last - first }
-        , reserved{ _size * 3 }
-        , _offset{ _size }
-        , _data{ new std::byte[sizeof(T) * reserved] }
+    template <typename InputIt>
+    veque<T>::veque(InputIt first, InputIt last)
+        : _size{ std::distance(first,last) }
+        , _allocated{ _size * 3 + 3 }
+        , _offset{ _size + 1 }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
     {
         for ( auto & val : *this )
         {
@@ -300,9 +392,9 @@
     template <typename T>
     veque<T>::veque( std::initializer_list<T> lst )
         : _size{ lst.size() }
-        , reserved{ _size * 3 }
-        , _offset{ _size }
-        , _data{ new std::byte[sizeof(T) * reserved] }
+        , _allocated{ _size * 3 + 3 }
+        , _offset{ _size + 1 }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
     {
         auto first = lst.begin();
         for ( auto & val : *this )
@@ -315,9 +407,9 @@
     template <typename T>
     veque<T>::veque(const veque<T> &other)
         : _size{ other._size }
-        , reserved{ other.reserved }
+        , _allocated{ other._allocated }
         , _offset{ other._offset }
-        , _data{ new std::byte[sizeof(T) * reserved] }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
     {
         auto first = other.begin();
         for ( auto & val : *this )
@@ -330,7 +422,7 @@
     template <typename T>
     veque<T>::veque(veque<T> &&other) noexcept
         : _size{ 0 }
-        , reserved{ 0 }
+        , _allocated{ 0 }
         , _offset{ 0 }
         , _data{ nullptr }
     {
@@ -339,11 +431,11 @@
      
     // Private impl for setting up custom storage
     template <typename T>
-    veque<T>::veque( size_type reserved, size_type _offset )
+    veque<T>::veque( size_type _allocated, size_type _offset )
         : _size{ 0 }
-        , reserved{ reserved }
+        , _allocated{ _allocated }
         , _offset{ _offset }
-        , _data{ new std::byte[sizeof(T) * reserved] }
+        , _data{ new std::byte[sizeof(T) * _allocated] }
     {
     }
 
@@ -358,34 +450,34 @@
     }
 
     template <typename T>
-    veque<T> & veque<T>::operator=(const veque<T> &other)
+    veque<T> & veque<T>::operator=( const veque<T> & other )
     {
         swap( veque<T>(other) );
         return *this;
     }
 
     template <typename T>
-    veque<T> & veque<T>::operator=(veque<T> &&other)
+    veque<T> & veque<T>::operator=( veque<T> && other )
     {
         swap( other );
         return *this;
     }
 
     template <typename T>
-    veque<T> & veque<T>::operator=(std::initializer_list<T> lst)
+    veque<T> & veque<T>::operator=( std::initializer_list<T> lst )
     {
         swap( veque<T>(lst) );
         return *this;
     }
 
     template <typename T>
-    void veque<T>::assign(typename veque<T>::size_type count, const T &value)
+    void veque<T>::assign( typename veque<T>::size_type count, const T & value )
     {
         swap( veque<T>(count,value) );
     }
 
     template <typename T>
-    void veque<T>::assign(typename veque<T>::iterator first,  veque<T>::iterator last)
+    void veque<T>::assign( typename veque<T>::iterator first, veque<T>::iterator last )
     {
         swap( veque<T>(first,last) );
     }
@@ -399,25 +491,25 @@
     template <typename T>
     typename veque<T>::iterator veque<T>::begin() noexcept
     {
-        return reinterpret_cast<T*>( _data + (sizeof(T) * _offset ) );
+        return reinterpret_cast<iterator>( _data + (sizeof(T) * _offset ) );
     }
 
     template <typename T>
     typename veque<T>::const_iterator veque<T>::cbegin() const noexcept
     {
-        return reinterpret_cast<const T*>( _data + (sizeof(T) * _offset ) );
+        return reinterpret_cast<const_iterator>( _data + (sizeof(T) * _offset ) );
     }
 
     template <typename T>
     typename veque<T>::iterator veque<T>::end() noexcept
     {
-        return reinterpret_cast<T*>( _data + (sizeof(T) * _offset ) + (sizeof(T) * _size) );
+        return reinterpret_cast<iterator>( _data + (sizeof(T) * _offset ) + (sizeof(T) * size()) );
     }
 
     template <typename T>
     typename veque<T>::const_iterator veque<T>::cend() const noexcept
     {
-        return reinterpret_cast<const T*>( _data + (sizeof(T) * _offset ) + (sizeof(T) * _size) );
+        return reinterpret_cast<const_iterator>( _data + (sizeof(T) * _offset ) + (sizeof(T) * size()) );
     }
 
     template <typename T>
@@ -447,7 +539,7 @@
     template <typename T>
     bool veque<T>::empty() const noexcept
     {
-        return _size == 0;
+        return size() == 0;
     }
 
     template <typename T>
@@ -465,19 +557,19 @@
     template <typename T>
     typename veque<T>::size_type veque<T>::capacity_full() const noexcept
     {
-        return reserved;
+        return _allocated;
     }
 
     template <typename T>
     typename veque<T>::size_type veque<T>::capacity_front() const noexcept
     {
-        return _offset + _size;
+        return _offset + size();
     }
 
     template <typename T>
     typename veque<T>::size_type veque<T>::capacity_back() const noexcept
     {
-        return reserved - _offset;
+        return _allocated - _offset;
     }
 
     template <typename T>
@@ -489,27 +581,20 @@
     template <typename T>
     void veque<T>::resize_back( veque<T>::size_type count )
     {
-        if ( count > _size )
+        if ( count > size() )
         {
-            const auto add_count = count - size();
             if ( count > capacity_back() )
             {
-                veque<T> other( count * 3, count );
-                for ( auto && element : *this )
-                {
-                    other.push_back( std::move(element) );
-                }
-                swap(other);
+                reallocate( count * 3, count );
             }
-            for ( size_type i = 0; i != add_count; ++ i )
+            while ( size() != count )
             {
                 emplace_back();
             }
         }
         else
         {
-            const auto remove_count = size() - count;
-            for ( size_type i = 0; i != remove_count; ++ i )
+            while ( size() != count )
             {
                 pop_back();
             }
@@ -519,27 +604,20 @@
     template <typename T>
     void veque<T>::resize_back( veque<T>::size_type count, const T & value )
     {
-        if ( count > _size )
+        if ( count > size() )
         {
-            const auto add_count = count - size();
             if ( count > capacity_back() )
             {
-                veque<T> other( count * 3, count );
-                for ( auto && element : *this )
-                {
-                    other.push_back( std::move(element) );
-                }
-                swap(other);
+                reallocate( count * 3, count );
             }
-            for ( size_type i = 0; i != add_count; ++ i )
+            while ( size() != count )
             {
                 push_back( value );
             }
         }
         else
         {
-            const auto remove_count = size() - count;
-            for ( size_type i = 0; i != remove_count; ++ i )
+            while ( size() != count )
             {
                 pop_back();
             }
@@ -550,27 +628,20 @@
     template <typename T>
     void veque<T>::resize_front( veque<T>::size_type count )
     {
-        if ( count > _size )
+        if ( count > size() )
         {
-            const auto add_count = count - size();
-            if ( count > capacity_back() )
+            if ( count > capacity_front() )
             {
-                veque<T> other( count * 3, count * 2 );
-                for ( auto && element : *this )
-                {
-                    other.push_front( std::move(element) );
-                }
-                swap(other);
+                reallocate( count * 3, count );
             }
-            for ( size_type i = 0; i != add_count; ++ i )
+            while ( size() != count )
             {
                 emplace_front();
             }
         }
         else
         {
-            const auto remove_count = size() - count;
-            for ( size_type i = 0; i != remove_count; ++ i )
+            while ( size() != count )
             {
                 pop_front();
             }
@@ -581,27 +652,20 @@
     template <typename T>
     void veque<T>::resize_front( veque<T>::size_type count, const T & value )
     {
-        if ( count > _size )
+        if ( count > size() )
         {
-            const auto add_count = count - size();
-            if ( count > capacity_back() )
+            if ( count > capacity_front() )
             {
-                veque<T> other( count * 3, count * 2 );
-                for ( auto && element : *this )
-                {
-                    other.push_front( std::move(element) );
-                }
-                swap(other);
+                reallocate( count * 3, count );
             }
-            for ( size_type i = 0; i != add_count; ++ i )
+            while ( size() != count )
             {
                 push_front( value );
             }
         }
         else
         {
-            const auto remove_count = size() - count;
-            for ( size_type i = 0; i != remove_count; ++ i )
+            while ( size() != count )
             {
                 pop_front();
             }
@@ -626,12 +690,7 @@
     {
         if ( count > capacity_front() )
         {
-            veque<T> other( count + size() * 2, count );
-            for ( auto && element : *this )
-            {
-                other.push_back( std::move(element) );
-            }
-            swap(other);
+            reallocate( size() * 2 + count, count );
         }
     }
 
@@ -640,12 +699,7 @@
     {
         if ( count > capacity_back() )
         {
-            veque<T> other( count + size() * 2, _offset );
-            for ( auto && element : *this )
-            {
-                other.push_back( std::move(element) );
-            }
-            swap(other);
+            reallocate( size() * 2 + count, size() );
         }
     }
 
@@ -654,12 +708,7 @@
     {
         if ( count > capacity_front() || count > capacity_back() )
         {
-            veque<T> other( count * 2 + size(), count );
-            for ( auto && element : *this )
-            {
-                other.push_back( std::move(element) );
-            }
-            swap(other);
+            reallocate( size() + count * 2, count );
         }
     }
 
@@ -668,12 +717,7 @@
     {
         if ( size() < capacity_front() || size() < capacity_back() )
         {
-            veque<T> other( size(), 0 );
-            for ( auto && element : *this )
-            {
-                other.push_back( std::move(element) );
-            }
-            swap(other);
+            reallocate( size(), size() );
         }
     }
 
@@ -692,19 +736,21 @@
     template <typename T>
     typename veque<T>::reference veque<T>::at(size_type pos)
     {
-        if (pos < _size)
-            return (*this)[pos];
-        else
+        if ( pos >= size() )
+        {
             throw std::out_of_range("veque<T>::at(size_type) out of range");
+        }
+        return (*this)[pos];
     }
 
     template <typename T>
     typename veque<T>::const_reference veque<T>::at(size_type pos) const
     {
-        if (pos < _size)
-            return (*this)[pos];
-        else
+        if ( pos >= size() )
+        {
             throw std::out_of_range("veque<T>::at(size_type) out of range");
+        }
+        return (*this)[pos];
     }
 
     template <typename T>
@@ -722,13 +768,13 @@
     template <typename T>
     typename veque<T>::reference veque<T>::back()
     {
-        return (*this)[_size - 1];
+        return (*this)[size() - 1];
     }
 
     template <typename T>
     typename veque<T>::const_reference veque<T>::back() const
     {
-        return (*this)[_size - 1];
+        return (*this)[size() - 1];
     }
 
     template <typename T>
@@ -749,7 +795,7 @@
     {
         if ( size() == capacity_back() )
         {
-            *this = veque<T>( begin(), end() );
+            reallocate();
         }
         ++_size;
         new(&back()) T(std::forward<Args>(args) ...);
@@ -760,7 +806,7 @@
     {
         if ( size() == capacity_back() )
         {
-            *this = veque<T>( begin(), end() );
+            reallocate();
         }
         ++_size;
         new(&back()) T(val);
@@ -771,7 +817,7 @@
     {
         if ( size() == capacity_back() )
         {
-            *this = veque<T>( begin(), end() );
+            reallocate();
         }
         ++_size;
         new(&back()) T(std::move(val));
@@ -790,7 +836,7 @@
     {
         if ( size() == capacity_front() )
         {
-            *this = veque<T>( begin(), end() );
+            reallocate();
         }
         ++_size;
         --_offset;
@@ -802,7 +848,7 @@
     {
         if ( size() == capacity_front() )
         {
-            *this = veque<T>( begin(), end() );
+            reallocate();
         }
         ++_size;
         --_offset;
@@ -814,7 +860,7 @@
     {
         if ( size() == capacity_front() )
         {
-            *this = veque<T>( begin(), end() );
+            reallocate();
         }
         ++_size;
         --_offset;
@@ -831,7 +877,7 @@
 
     template <typename T>
     template <class ... Args>
-    typename veque<T>::iterator veque<T>::emplace(typename veque<T>::const_iterator it, Args && ... args)
+    typename veque<T>::iterator veque<T>::emplace( typename veque<T>::const_iterator it, Args && ... args )
     {
         it = insert_empty_space( it, 1 );
         new (it) T( std::forward<Args>(args)... );
@@ -839,7 +885,7 @@
     }
     
     template <typename T>
-    typename veque<T>::iterator veque<T>::insert(typename veque<T>::const_iterator it, const T &val)
+    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, const T &val )
     {
         it = insert_empty_space( it, 1 );
         new (it) T( val );
@@ -847,7 +893,7 @@
     }
 
     template <typename T>
-    typename veque<T>::iterator veque<T>::insert(typename veque<T>::const_iterator it, T &&val)
+    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, T &&val )
     {
         it = insert_empty_space( it, 1 );
         new (it) T( std::move(val) );
@@ -855,36 +901,34 @@
     }
 
     template <typename T>
-    typename veque<T>::iterator veque<T>::insert(typename veque<T>::const_iterator it,  veque<T>::size_type cnt, const T &val)
+    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it,  veque<T>::size_type cnt, const T &val )
     {
         it = insert_empty_space( it, cnt );
-        for ( iterator i = it; cnt--; ++i)
-            *i = val;
+        for ( iterator i = it; i != it + cnt; ++i)
+            new(i) T(val);
         return it;
     }
 
     template <typename T>
     template <class InputIt>
-    typename veque<T>::iterator veque<T>::insert(typename veque<T>::const_iterator it, InputIt first, InputIt last)
+    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, InputIt first, InputIt last )
     {
-        it = insert_empty_space( it, std::distance(first,last) );
-        for ( iterator i = it; first != last; ++i)
+        auto dest = insert_empty_space( it, std::distance(first,last) );
+        for ( auto src = first; src != last; ++src, ++dest)
         {
-            *i = first;
-            ++first;
+            new(dest) T(*src);
         }
         return it;
     }
 
     template <typename T>
-    typename veque<T>::iterator veque<T>::insert(typename veque<T>::const_iterator it, std::initializer_list<T> lst)
+    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, std::initializer_list<T> lst )
     {
-        it = insert_empty_space( it, lst.size() );
-        auto i = it;
-        for ( auto const & val : lst  )
+        auto dest = insert_empty_space( it, lst.size() );
+        for ( auto && src : lst  )
         {
-            *i = val;
-            ++i;
+            new(dest) T(src);
+            ++dest;
         }
         return it;
     }
@@ -898,14 +942,17 @@
     template <typename T>
     typename veque<T>::iterator veque<T>::erase(typename veque<T>::const_iterator first,  veque<T>::const_iterator last)
     {
-        if ( first - begin() < end() - last )
+        auto elements_before = first - begin();
+        auto elements_after = end() - last;
+        auto count = std::distance( first, last );
+        if (  elements_before < elements_after )
         {
-            shift_back( begin(), first, last - first );
+            shift_back( begin(), first, count );
             return last;
         }
         else
         {
-            shift_front( last, end(), last - first );
+            shift_front( last, end(), count );
             return first;
         }
     }
@@ -913,10 +960,10 @@
     template <typename T>
     void veque<T>::swap( veque<T> &other )
     {
-        std::swap( _size, other._size );
-        std::swap( reserved, other.reserved );
-        std::swap( _offset, other._offset );
-        std::swap( _data, other._data );
+        std::swap( _size,      other._size );
+        std::swap( _allocated, other._allocated );
+        std::swap( _offset,    other._offset );
+        std::swap( _data,      other._data );
     }
 
     template <typename T>
@@ -927,7 +974,7 @@
             val.~T();
         }
         _size = 0;
-        _offset = reserved / 2;
+        _offset = _allocated / 2;
     }
 
     template <typename T>
