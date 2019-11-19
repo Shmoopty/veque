@@ -14,7 +14,7 @@ As C++ has matured, `std::vector` has held its ground as a very popular containe
 ### Features
 * Like `std::vector`, **veque** is an ordered container, in cache-friendly, array-compatible contiguous memory.
 * Like `std::deque`, **veque** allows fast insertion/deletion from the front of the container
-* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster.
+* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
 The interface for **veque** includes the entire interface for `std::vector`, with the same iterator invalidation rules and expectations.  allowing **veque** to be used as a drop-in replacement.
