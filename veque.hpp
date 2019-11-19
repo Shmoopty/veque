@@ -34,7 +34,7 @@
         using difference_type = std::ptrdiff_t;
         using size_type = std::size_t;
 
-        // Common member functions:
+        // Common member functions
         veque() noexcept;
         explicit veque(size_type n);
         veque(size_type n, const T &val);
@@ -63,7 +63,7 @@
         T * data() noexcept;
         const T * data() const noexcept;
         
-        // Iterators:
+        // Iterators
         iterator begin() noexcept;
         const_iterator cbegin() const noexcept;
         iterator end() noexcept;
@@ -73,7 +73,7 @@
         reverse_iterator rend() noexcept;
         const_reverse_iterator crend() const noexcept;
 
-        // Capacity:
+        // Capacity
         bool empty() const noexcept;
         size_type size() const noexcept;
         size_type max_size() const noexcept;
