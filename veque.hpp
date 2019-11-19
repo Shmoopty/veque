@@ -12,7 +12,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstring>
 #include <iterator>
 #include <limits>
 #include <stdexcept>
@@ -216,17 +215,16 @@
         auto new_elements_at_front = cbegin() - b + distance;
         auto range_includes_end = (e == end());
 
-        // If range moves before begin(), veque has grown
-        if ( new_elements_at_front > 0 )
-        {
-            _offset -= new_elements_at_front;
-            _size += new_elements_at_front;
-        }
-
         // If range includes end(), veque has shrunk
         if ( range_includes_end )
         {
             _size -= distance;
+        }
+        // Otherwise, if range moves before begin(), veque has grown
+        else if ( new_elements_at_front > 0 )
+        {
+            _offset -= new_elements_at_front;
+            _size += new_elements_at_front;
         }
 
         return start - distance;
@@ -264,18 +262,18 @@
         auto new_elements_at_back = end() + distance - e;
         auto range_includes_begin = (b == begin());
 
-        // If range includes begin(), veque has shrunk
-        if ( range_includes_begin )
-        {
-            _offset += distance;
-            _size -= distance;
-        }
-
         // If range moves before begin(), veque has grown
         if ( new_elements_at_back > 0 )
         {
             _size += new_elements_at_back;
         }
+        // Otherwise, if range includes begin(), veque has shrunk
+        else if ( range_includes_begin )
+        {
+            _offset += distance;
+            _size -= distance;
+        }
+
         
         return start;
     }
@@ -454,7 +452,8 @@
     template <typename T>
     veque<T> & veque<T>::operator=( const veque<T> & other )
     {
-        swap( veque<T>(other) );
+        auto swappable = veque<T>(other);
+        swap( swappable );
         return *this;
     }
 
@@ -626,7 +625,6 @@
         }
     }
 
-    
     template <typename T>
     void veque<T>::resize_front( veque<T>::size_type count )
     {
@@ -649,8 +647,7 @@
             }
         }
     }
-    
-    
+
     template <typename T>
     void veque<T>::resize_front( veque<T>::size_type count, const T & value )
     {
@@ -890,7 +887,7 @@
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, const T &val )
     {
         auto res = insert_empty_space( it, 1 );
-        new (it) T( val );
+        new (res) T( val );
         return res;
     }
 
@@ -1020,6 +1017,5 @@
     {
         return !( lhs < rhs );
     }
-
 
 #endif
