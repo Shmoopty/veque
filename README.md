@@ -9,12 +9,12 @@ As C++ has matured, `std::vector` has held its ground as a very popular containe
 
 `std::deque`, however, has grown increasingly unpopular.  Nearly to the extent of `std::list`, and for similar reasons - it is non-contiguous and _very_ cache-unfriendly to iterate.
 
-**veque** is an efficient container with interface and organization very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** distributes it unused space both _before_ and _after_ the used storage. 
+**veque** is an efficient container with interface and organization very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** distributes its unused space both _before_ and _after_ the used storage. 
 
 ### Features
 * Like `std::vector`, **veque** is an ordered container, in cache-friendly, array-compatible contiguous memory.
 * Like `std::deque`, **veque** allows fast insertion/deletion from the front of the container
-* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster.
+* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
 The interface for **veque** includes the entire interface for `std::vector`, with the same iterator invalidation rules and expectations.  allowing **veque** to be used as a drop-in replacement.
