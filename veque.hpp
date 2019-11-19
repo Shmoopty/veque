@@ -128,6 +128,8 @@
         std::byte *_data = nullptr;
 
         struct allocate_empty_tag {};
+
+        void swap(veque<T> &&);
         // Create an empty veque, with specified storage params
         veque( allocate_empty_tag, size_type size );
         // Create an empty veque, with specified storage params
@@ -349,7 +351,7 @@
     template <typename T>
     
     veque<T>::veque() noexcept
-        : _data { new std::byte[sizeof(T) * _allocated] }
+        : _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * _allocated ) ) }
     {
     }
 
@@ -402,7 +404,7 @@
         : _size{ other._size }
         , _allocated{ other._allocated }
         , _offset{ other._offset }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * _allocated ) ) }
     {
         auto first = other.cbegin();
         for ( auto & val : *this )
@@ -428,7 +430,7 @@
         : _size{ size }
         , _allocated{ size * 3 + 3 }
         , _offset{ size + 1 }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * _allocated ) ) }
     {
     }        
         
@@ -438,7 +440,7 @@
         : _size{ 0 }
         , _allocated{ _allocated }
         , _offset{ _offset }
-        , _data{ new std::byte[sizeof(T) * _allocated] }
+        , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * _allocated ) ) }
     {
     }
 
@@ -449,14 +451,13 @@
         {
             val.~T();
         }
-        delete[] _data; 
+        std::free( _data ); 
     }
 
     template <typename T>
     veque<T> & veque<T>::operator=( const veque<T> & other )
     {
-        auto swappable = veque<T>(other);
-        swap( swappable );
+        swap( veque<T>(other) );
         return *this;
     }
 
@@ -470,8 +471,7 @@
     template <typename T>
     veque<T> & veque<T>::operator=( std::initializer_list<T> lst )
     {
-        auto swappable = veque<T>(lst);
-        swap( swappable );
+        swap( veque<T>(lst) );
         return *this;
     }
 
@@ -484,8 +484,7 @@
     template <typename T>
     void veque<T>::assign( typename veque<T>::iterator first, veque<T>::iterator last )
     {
-        auto swappable = veque<T>(first,last);
-        swap( swappable );
+        swap( veque<T>(first,last) );
     }
 
     template <typename T>
@@ -978,6 +977,12 @@
         std::swap( _data,      other._data );
     }
 
+    template <typename T>
+    void veque<T>::swap( veque<T> && other )
+    {
+        swap(other);
+    }
+    
     template <typename T>
     void veque<T>::clear() noexcept
     {
