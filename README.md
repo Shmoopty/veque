@@ -20,14 +20,14 @@ Efficient C++17 container combining the best features of `std::vector` and `std:
 The interface for **veque** includes the entire interface for `std::vector`, with the same iterator invalidation rules and expectations.  allowing **veque** to be used as a drop-in replacement.
 
 In addition, **veque** provides the following additional functions:
-* `capacity_front()`
-* `capacity_back()` (synonymous with `capacity()`)
-* `capacity_full()`
 * `push_front()`
 * `emplace_front()`
 * `pop_front()`
 * `resize_front()`
-* `resize_back()` (synonymous with `resize()`)
+* `resize_back()` (Same as `resize()`, for `std::vector` parity)
+* `capacity_front()`
+* `capacity_back()` (Same as `capacity()`, for `std::vector` parity)
+* `capacity_full()`
 
 ### To do:
 * GCC memory allocations are already _very aligned_, but code should explicitly demand correctly aligned memory.
