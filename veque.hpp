@@ -129,11 +129,16 @@
 
         struct allocate_uninitialized_tag {};
 
-        void swap(veque<T> &&);
         // Create an empty veque, with specified storage params
         veque( allocate_uninitialized_tag, size_type size );
         // Create an empty veque, with specified storage params
         veque( size_type allocated, size_type offset );
+        // Destroy elements in range
+        void destroy( const_iterator begin, const_iterator end );
+        // Construct elements in range
+        template< typename ...Args >
+        void construct( const_iterator begin, const_iterator end, const Args & ...args );
+        
         // Move vector to new storage, with default capacity for current size
         void reallocate();
         void reallocate( size_type allocated, size_type offset );
@@ -151,6 +156,25 @@
         // Returns iterator to beginning of destructed gap
         iterator shift_back( const_iterator begin, const_iterator end, size_type count );
     };
+
+    template <typename T>
+    void veque<T>::destroy( const_iterator b, const_iterator e )
+    {
+        for ( auto i = b; i != e; ++i )
+        {
+            i->~T();
+        }        
+    }
+
+    template <typename T>
+    template< typename ...Args >
+    void veque<T>::construct( const_iterator b, const_iterator e, const Args & ...args )
+    {
+        for ( auto i = begin() + std::distance(cbegin(),b); i != e; ++i )
+        {
+            new(i) T(args...);
+        }
+    }
 
     template <typename T>
     void veque<T>::reallocate()
@@ -215,11 +239,7 @@
                 *dest = std::move(*src);
             }
         }
-        auto destruct_end = std::max( cbegin() - 1, e - 1 - distance );
-        for ( auto i = e - 1; i != destruct_end; --i )
-        {
-            i->~T();
-        }
+        destroy( std::max( cbegin(), e - distance ), e );
         difference_type new_elements_at_front = cbegin() - b + distance;
         auto range_includes_end = (e == end());
 
@@ -263,11 +283,7 @@
                 *dest = std::move(*src);
             }
         }
-        auto destruct_end = std::min( cend(), b + distance );
-        for ( auto i = b; i != destruct_end; ++i )
-        {
-            i->~T();
-        }
+        destroy( b, std::min( cend(), b + distance ) );
         
         difference_type new_elements_at_back = e - end() + distance;
         auto range_includes_begin = (b == begin());
@@ -362,20 +378,14 @@
     veque<T>::veque( veque<T>::size_type n )
         : veque{ allocate_uninitialized_tag{}, n }
     {
-        for ( auto && dest : *this )
-        {
-            new(&dest) T();
-        }
+        construct( begin(), end() );
     }
 
     template <typename T>
     veque<T>::veque(veque<T>::size_type n, const T &value)
         : veque{ allocate_uninitialized_tag{}, n }
     {
-        for ( auto && dest : *this )
-        {
-            new(&dest) T(value);
-        }
+        construct( begin(), end(), value );
     }
 
     template <typename T>
@@ -450,17 +460,14 @@
     template <typename T>
     veque<T>::~veque()
     {
-        for ( auto && val : *this )
-        {
-            val.~T();
-        }
+        destroy( begin(), end() );
         std::free( _data ); 
     }
 
     template <typename T>
     veque<T> & veque<T>::operator=( const veque<T> & other )
     {
-        swap( veque<T>(other) );
+        *this = veque<T>(other);
         return *this;
     }
 
@@ -481,19 +488,19 @@
     template <typename T>
     void veque<T>::assign( typename veque<T>::size_type count, const T & value )
     {
-        swap( veque<T>(count,value) );
+        *this = veque<T>(count,value);
     }
 
     template <typename T>
     void veque<T>::assign( typename veque<T>::iterator first, veque<T>::iterator last )
     {
-        swap( veque<T>(first,last) );
+        *this = veque<T>(first,last);
     }
 
     template <typename T>
     void veque<T>::assign(std::initializer_list<T> lst)
     {
-        swap( veque<T>(lst) );
+        *this = veque<T>(lst);
     }
 
     template <typename T>
@@ -601,19 +608,13 @@
             {
                 reallocate( count * 3, count );
             }
-            while ( size() != count )
-            {
-                emplace_back();
-            }
+            construct( end(), begin() + count );
         }
         else
         {
-            for ( auto i = begin() + count; i != end(); ++i )
-            {
-                i->~T();
-            }
-            _size = count;
+            destroy( begin() + count, end() );
         }
+        _size = count;
     }
 
     template <typename T>
@@ -625,65 +626,55 @@
             {
                 reallocate( count * 3, count );
             }
-            while ( size() != count )
-            {
-                push_back( value );
-            }
+            construct( end(), begin() + count, value );
         }
         else
         {
-            for ( auto i = begin() + count; i != end(); ++i )
-            {
-                i->~T();
-            }
-            _size = count;
+            destroy( begin() + count, end() );
         }
+        _size = count;
     }
 
     template <typename T>
     void veque<T>::resize_front( veque<T>::size_type count )
     {
-        if ( count > size() )
+        difference_type delta = count - size();
+        auto new_begin = begin() - delta;
+        if ( delta > 0 )
         {
             if ( count > capacity_front() )
             {
                 reallocate( count * 3, count );
             }
-            while ( size() != count )
-            {
-                emplace_front();
-            }
+            construct( new_begin, begin() );
         }
         else
         {
-            while ( size() != count )
-            {
-                pop_front();
-            }
+            destroy( begin(), new_begin );
         }
+        _size = count;
+        _offset -= delta;
     }
 
     template <typename T>
     void veque<T>::resize_front( veque<T>::size_type count, const T & value )
     {
-        if ( count > size() )
+        difference_type delta = count - size();
+        auto new_begin = begin() - delta;
+        if ( delta > 0 )
         {
             if ( count > capacity_front() )
             {
                 reallocate( count * 3, count );
             }
-            while ( size() != count )
-            {
-                push_front( value );
-            }
+            construct( new_begin, begin(), value );
         }
         else
         {
-            while ( size() != count )
-            {
-                pop_front();
-            }
+            destroy( begin(), new_begin );
         }
+        _size = count;
+        _offset -= delta;
     }
     
     template <typename T>
@@ -814,7 +805,7 @@
             reallocate();
         }
         ++_size;
-        new(&back()) T(std::forward<Args>(args) ...);
+        new(&back()) T(std::forward<Args>(args)...);
     }
 
     template <typename T>
@@ -983,18 +974,9 @@
     }
 
     template <typename T>
-    void veque<T>::swap( veque<T> && other )
-    {
-        swap(other);
-    }
-    
-    template <typename T>
     void veque<T>::clear() noexcept
     {
-        for ( auto && val : *this )
-        {
-            val.~T();
-        }
+        destroy( begin(), end() );
         _size = 0;
         _offset = _allocated / 2;
     }
