@@ -707,7 +707,9 @@
     {
         if ( count > capacity_front() || count > capacity_back() )
         {
-            reallocate( size() + count * 2, count );
+            auto front_unallocated = std::max( capacity_front(), count ) - size();
+            auto back_unallocated = std::max( capacity_back(), count ) - size();
+            reallocate( front_unallocated + size() + back_unallocated, front_unallocated );
         }
     }
 
