@@ -879,7 +879,7 @@
     typename veque<T>::iterator veque<T>::emplace( typename veque<T>::const_iterator it, Args && ... args )
     {
         auto res = insert_empty_space( it, 1 );
-        new (it) T( std::forward<Args>(args)... );
+        new (res) T( std::forward<Args>(args)... );
         return res;
     }
     
@@ -895,7 +895,7 @@
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, T &&val )
     {
         auto res = insert_empty_space( it, 1 );
-        new (it) T( std::move(val) );
+        new (res) T( std::move(val) );
         return res;
     }
 
@@ -903,7 +903,7 @@
     typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it,  veque<T>::size_type cnt, const T &val )
     {
         auto res = insert_empty_space( it, cnt );
-        for ( iterator i = it; i != it + cnt; ++i)
+        for ( iterator i = res; i != res + cnt; ++i)
             new(i) T(val);
         return res;
     }
