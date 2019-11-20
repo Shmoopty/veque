@@ -31,4 +31,4 @@ In addition, **veque** provides the following additional functions:
 
 ### To do:
 * Implement `std::hash<veque>`
-* Allocator support
+* Allocator support?
