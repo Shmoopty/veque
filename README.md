@@ -30,6 +30,5 @@ In addition, **veque** provides the following additional functions:
 * `capacity_full()`
 
 ### To do:
-* GCC memory allocations are already _very aligned_, but code should explicitly demand correctly aligned memory.
 * Implement `std::hash<veque>`
 * Allocator support
