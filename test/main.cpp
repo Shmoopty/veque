@@ -96,9 +96,6 @@ struct ThrowingMoveObject
     std::string data = std::string( 1024, 'Z' );
 };
 
-
-
-
 TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject )
 {
     veque<TestType> v( 5 );
