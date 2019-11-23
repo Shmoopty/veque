@@ -8,9 +8,12 @@
 #define CATCH_CONFIG_MAIN
 
 #include "catch.hpp"
-#include "include/veque.hpp"
+#include "../include/veque.hpp"
 #include <vector>
 #include <string> 
+#include <unordered_set> 
+#include <string> 
+
 
 // A trivial object should benefit from supporting memcpy/memmove
 // and no destruction
@@ -844,4 +847,31 @@ TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, doubl
         CHECK( veq4.size() == 3 );
         CHECK( veq4 == veque<TestType>{ val<TestType,2>, val<TestType,2>, val<TestType,2> } );
     }
+}
+
+TEMPLATE_TEST_CASE( "hashing", "[veque][template]", bool, int, std::string )
+{
+    std::unordered_set<veque<TestType>> set;
+    
+    set.emplace( val<TestType,1> )
+    set.emplace( val<TestType,2> )
+    set.emplace( val<TestType,3> )
+
+    CHECK( set.size() == 3 );
+    CHECK( set.count(val<TestType,0>) == 0 );
+    CHECK( set.count(val<TestType,1>) == 1 );
+    CHECK( set.count(val<TestType,2>) == 1 );
+    CHECK( set.count(val<TestType,3>) == 1 );
+    CHECK( set.count(val<TestType,4>) == 0 );
+    CHECK( set.count(val<TestType,5>) == 0 );
+
+    set.emplace( val<TestType,3> )
+
+    CHECK( set.size() == 3 );
+    CHECK( set.count(val<TestType,0>) == 0 );
+    CHECK( set.count(val<TestType,1>) == 1 );
+    CHECK( set.count(val<TestType,2>) == 1 );
+    CHECK( set.count(val<TestType,3>) == 1 );
+    CHECK( set.count(val<TestType,4>) == 0 );
+    CHECK( set.count(val<TestType,5>) == 0 );
 }

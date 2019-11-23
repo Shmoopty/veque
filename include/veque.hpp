@@ -1079,5 +1079,24 @@
     {
         return !( lhs < rhs );
     }
+    
+    
+namespace std
+{
+  template <typename T>
+  struct hash<veque<T>
+  {
+    size_t operator()( const veque & v ) const
+    {
+        size_t hash = 0;
+        auto hasher = std::hash<T>{};
+        for ( auto && val : v )
+        {
+            hash ^= hasher(v) + 0x9e3779b9 + (hash<<6) + (hash>>2);
+        }
+        return hash;
+    }
+  };
+}
 
 #endif
