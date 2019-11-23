@@ -1084,9 +1084,9 @@
 namespace std
 {
   template <typename T>
-  struct hash<veque<T>
+  struct hash<veque<T>>
   {
-    size_t operator()( const veque & v ) const
+    size_t operator()( const veque<T> & v ) const
     {
         size_t hash = 0;
         auto hasher = std::hash<T>{};
