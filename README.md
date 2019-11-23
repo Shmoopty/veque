@@ -1,5 +1,5 @@
 # veque
-Efficient C++17 container combining the best features of `std::vector` and `std::deque`
+Very fast C++17 container combining the best features of `std::vector` and `std::deque`
 
 > _"In Most Cases, Prefer Using deque (Controversial)"_
 >
