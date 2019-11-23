@@ -18,10 +18,11 @@
 #include <utility>
 
 
-    template <typename T>
+    template <typename T, typename Allocator = std::allocator<T> >
     class veque {
     public:
         // Types
+        using allocator_type = Allocator;
         using value_type = T;
         using reference = T &;
         using const_reference = const T &;
@@ -36,20 +37,22 @@
         using ssize_type = std::ptrdiff_t;
 
         // Common member functions
-        veque() noexcept;
-        explicit veque(size_type n);
-        veque(size_type n, const T &val);
+        veque() noexcept (noexcept(Allocator()));
+        explicit veque( const Allocator& ) noexcept;
+        explicit veque( size_type n, const Allocator& = Allocator() );
+        veque( size_type n, const T &val, const Allocator& = Allocator() );
         template <typename InputIt>
-        veque(InputIt first,  InputIt last);
-        veque(std::initializer_list<T>);
-        veque(const veque<T> &);
-        veque(veque<T> &&) noexcept;
+        veque( InputIt first,  InputIt last, const Allocator& = Allocator() );
+        veque( std::initializer_list<T>, const Allocator& = Allocator() );
+        veque( const veque &, const Allocator& = Allocator() );
+        veque( veque && ) noexcept;
+        veque( veque &&, const Allocator& = Allocator() ) noexcept;
         ~veque();
         veque<T> & operator=(const veque<T> &);
         veque<T> & operator=(veque<T> &&);
         veque<T> & operator=(std::initializer_list<T>);
         void assign(size_type, const T &value);
-        void assign(typename veque<T>::iterator,  veque<T>::iterator);
+        void assign(iterator, iterator);
         void assign(std::initializer_list<T>);
 
         // Element access
@@ -123,16 +126,26 @@
 
     private:
         size_type _size = 0;
-        size_type _allocated = 0;
         size_type _offset = 0;
-        std::byte *_data = nullptr;
-
+        struct Data : Allocator // Employing EBO, since the allocator is frequently monostate.
+        {
+            Data( size_type capacity, const Allocator & alloc )
+                : Allocator{alloc}
+                , _allocated{capacity}
+                , _storage{ this->allocate(capacity) }
+            {}
+            Data( nullptr_t ) {}
+            ~Data() { this->deallocate(_storage, _allocated); }
+            size_type _allocated = 0;
+            T *_storage = nullptr;
+        } __data;
+        
         struct allocate_uninitialized_tag {};
 
         // Create an empty veque, with specified storage params
-        veque( allocate_uninitialized_tag, size_type size );
+        veque( allocate_uninitialized_tag, size_type size, const Allocator& );
         // Create an empty veque, with specified storage params
-        veque( size_type allocated, size_type offset );
+        veque( size_type allocated, size_type offset, const Allocator& );
         // Destroy elements in range
         void priv_destroy( const_iterator begin, const_iterator end );
         // Construct elements in range
@@ -157,8 +170,8 @@
         iterator priv_shift_back( const_iterator begin, const_iterator end, size_type count );
     };
 
-    template <typename T>
-    void veque<T>::priv_destroy( const_iterator b, const_iterator e )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::priv_destroy( const_iterator b, const_iterator e )
     {
         if constexpr ( ! std::is_trivially_destructible_v<T> )
         {
@@ -169,9 +182,9 @@
         }
     }
     
-    template <typename T>
+    template <typename T, typename Alloc>
     template< typename ...Args >
-    void veque<T>::priv_construct( const_iterator b, const_iterator e, const Args & ...args )
+    void veque<T,Alloc>::priv_construct( const_iterator b, const_iterator e, const Args & ...args )
     {
         for ( auto i = begin() + std::distance(cbegin(),b); i != e; ++i )
         {
@@ -179,16 +192,16 @@
         }
     }
 
-    template <typename T>
-    void veque<T>::priv_reallocate()
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::priv_reallocate()
     {
         priv_reallocate( 3 * size() + 3, size() + 1 );
     }
     
-    template <typename T>
-    void veque<T>::priv_reallocate( veque<T>::size_type allocated, veque<T>::size_type offset  )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::priv_reallocate( veque<T,Alloc>::size_type allocated, veque<T,Alloc>::size_type offset  )
     {
-        auto other = veque<T>( allocated, offset );
+        auto other = veque<T>( allocated, offset, static_cast<const Alloc &>(__data) );
 
         if ( size() )
         {
@@ -217,8 +230,8 @@
         swap( other );
     }
     
-    template <typename T>
-    typename veque<T>::iterator veque<T>::priv_shift_front( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::priv_shift_front( veque<T,Alloc>::const_iterator b, veque<T,Alloc>::const_iterator e, veque<T,Alloc>::size_type distance )
     {
         if ( e == begin() )
         {
@@ -284,8 +297,8 @@
         return begin() + std::distance(cbegin(),e) - distance;
     }
     
-    template <typename T>
-    typename veque<T>::iterator veque<T>::priv_shift_back( veque<T>::const_iterator b, veque<T>::const_iterator e, veque<T>::size_type distance )
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::priv_shift_back( veque<T,Alloc>::const_iterator b, veque<T,Alloc>::const_iterator e, veque<T,Alloc>::size_type distance )
     {
         auto start = begin() + std::distance(cbegin(),b); 
         if ( b == end() )
@@ -350,8 +363,8 @@
         return start;
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::priv_insert_storage(typename veque<T>::const_iterator it, size_type count)
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::priv_insert_storage(typename veque<T,Alloc>::const_iterator it, size_type count)
     {
         auto required_size = size() + count;
         auto can_shift_back = capacity_back() >= required_size && it != begin();
@@ -383,7 +396,7 @@
         else
         {
             // Insufficient capacity.  Allocate new storage.
-            veque<T> other( required_size * 3, required_size );
+            veque<T> other( required_size, static_cast<const Alloc &>(__data) );
             auto index = std::distance( cbegin(), it );
             if constexpr ( std::is_trivially_copyable_v<T> )
             {
@@ -426,31 +439,31 @@
         }
     }
     
-    template <typename T>
+    template <typename T, typename Alloc>
     
-    veque<T>::veque() noexcept
-        : _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * capacity_full() ) ) }
+    veque<T,Alloc>::veque() noexcept (noexcept(Alloc()))
+        : __data { capacity_full(), Alloc{} }
     {
     }
 
-    template <typename T>
-    veque<T>::veque( veque<T>::size_type n )
-        : veque{ allocate_uninitialized_tag{}, n }
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( size_type n, const Alloc& alloc )
+        : veque{ allocate_uninitialized_tag{}, n, alloc }
     {
         priv_construct( begin(), end() );
     }
 
-    template <typename T>
-    veque<T>::veque(veque<T>::size_type n, const T &value)
-        : veque{ allocate_uninitialized_tag{}, n }
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( size_type n, const T &value, const Alloc& alloc )
+        : veque{ allocate_uninitialized_tag{}, n, alloc }
     {
         priv_construct( begin(), end(), value );
     }
 
-    template <typename T>
+    template <typename T, typename Alloc>
     template <typename InputIt>
-    veque<T>::veque(InputIt first, InputIt last)
-        : veque{ allocate_uninitialized_tag{}, veque<T>::size_type(std::distance(first,last)) }
+    veque<T,Alloc>::veque( InputIt first, InputIt last, const Alloc& alloc )
+        : veque{ allocate_uninitialized_tag{}, veque<T,Alloc>::size_type(std::distance(first,last)), alloc }
     {
         for ( auto && dest : *this )
         {
@@ -459,9 +472,9 @@
         }
     }
 
-    template <typename T>
-    veque<T>::veque( std::initializer_list<T> lst )
-        : veque{ allocate_uninitialized_tag{}, lst.size() }
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( std::initializer_list<T> lst, const Alloc& alloc  )
+        : veque{ allocate_uninitialized_tag{}, lst.size(), alloc }
     {
         auto dest = begin();
         for ( auto && src : lst )
@@ -471,12 +484,11 @@
         }
     }
 
-    template <typename T>
-    veque<T>::veque(const veque<T> &other)
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( const veque &other, const Alloc& alloc )
         : _size{ other._size }
-        , _allocated{ other._allocated }
         , _offset{ other._offset }
-        , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * capacity_full() ) ) }
+        , __data { other.__data._allocated, alloc }
     {
         auto first = other.cbegin();
         for ( auto && val : *this )
@@ -486,180 +498,214 @@
         }
     }
 
-    template <typename T>
-    veque<T>::veque(veque<T> &&other) noexcept
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque(veque &&other) noexcept
         : _size{ 0 }
-        , _allocated{ 0 }
         , _offset{ 0 }
-        , _data{ nullptr }
+        , __data{ nullptr }
     {
         swap( other );
     }
      
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque(veque &&other, const Alloc& alloc ) noexcept
+        : _size{ 0 }
+        , _offset{ 0 }
+        , __data{ nullptr }
+    {
+        if ( __data == alloc )
+        { 
+            swap( other );
+        }
+        else
+        {
+            veque newvec( other.size(), alloc );
+            if constexpr ( std::is_trivially_copyable_v<T> )
+            {
+                std::memcpy( newvec.begin(), other.begin(), other.size() * sizeof(T) );
+            }
+            else
+            {
+                auto dest = newvec.begin();
+                for ( auto && src : other )
+                {
+                    if constexpr ( std::is_nothrow_move_constructible_v<T> )
+                    {
+                        new(dest) T(std::move(src));
+                    }
+                    else
+                    {
+                        new(dest) T(src);
+                    }
+                    ++dest;
+                }
+            }
+            newvec._size = other.size();
+            swap(newvec);            
+        }
+    }
+     
     // Private impl for setting up custom storage
-    template <typename T>
-    veque<T>::veque( allocate_uninitialized_tag, size_type size )
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( allocate_uninitialized_tag, size_type size, const Alloc & alloc )
         : _size{ size }
-        , _allocated{ size * 3 + 3 }
         , _offset{ size + 1 }
-        , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * capacity_full() ) ) }
+        , __data { size * 3 + 3, alloc }
     {
     }        
         
     // Private impl for setting up custom storage
-    template <typename T>
-    veque<T>::veque( size_type _allocated, size_type _offset )
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( size_type allocated, size_type _offset, const Alloc & alloc )
         : _size{ 0 }
-        , _allocated{ _allocated }
         , _offset{ _offset }
-        , _data { reinterpret_cast<std::byte*>( std::aligned_alloc( alignof(T), sizeof(T) * capacity_full() ) ) }
+        , __data { allocated, alloc }
     {
     }
 
-    template <typename T>
-    veque<T>::~veque()
+    template <typename T, typename Alloc>
+    veque<T,Alloc>::~veque()
     {
         priv_destroy( begin(), end() );
-        std::free( _data ); 
     }
 
-    template <typename T>
-    veque<T> & veque<T>::operator=( const veque<T> & other )
+    template <typename T, typename Alloc>
+    veque<T> & veque<T,Alloc>::operator=( const veque<T> & other )
     {
-        *this = veque<T>(other);
+        *this = veque<T>( other, static_cast<const Alloc &>(__data) );
         return *this;
     }
 
-    template <typename T>
-    veque<T> & veque<T>::operator=( veque<T> && other )
+    template <typename T, typename Alloc>
+    veque<T> & veque<T,Alloc>::operator=( veque<T> && other )
     {
         swap( other );
         return *this;
     }
 
-    template <typename T>
-    veque<T> & veque<T>::operator=( std::initializer_list<T> lst )
+    template <typename T, typename Alloc>
+    veque<T> & veque<T,Alloc>::operator=( std::initializer_list<T> lst )
     {
-        swap( veque<T>(lst) );
+        swap( veque<T>(lst), static_cast<const Alloc &>(__data) );
         return *this;
     }
 
-    template <typename T>
-    void veque<T>::assign( typename veque<T>::size_type count, const T & value )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::assign( typename veque<T,Alloc>::size_type count, const T & value )
     {
-        *this = veque<T>(count,value);
+        *this = veque<T>( count,value,static_cast<const Alloc &>(__data) );
     }
 
-    template <typename T>
-    void veque<T>::assign( typename veque<T>::iterator first, veque<T>::iterator last )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::assign( typename veque<T,Alloc>::iterator first, veque<T,Alloc>::iterator last )
     {
-        *this = veque<T>(first,last);
+        *this = veque<T>( first,last, static_cast<const Alloc &>(__data) );
     }
 
-    template <typename T>
-    void veque<T>::assign(std::initializer_list<T> lst)
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::assign(std::initializer_list<T> lst)
     {
-        *this = veque<T>(lst);
+        *this = veque<T>( lst, static_cast<const Alloc &>(__data) );
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::begin() noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::begin() noexcept
     {
-        return reinterpret_cast<iterator>( _data ) + _offset;
+        return __data._storage + _offset;
     }
 
-    template <typename T>
-    typename veque<T>::const_iterator veque<T>::cbegin() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_iterator veque<T,Alloc>::cbegin() const noexcept
     {
-        return reinterpret_cast<iterator>( _data ) + _offset;
+        return __data._storage + _offset;
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::end() noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::end() noexcept
     {
-        return reinterpret_cast<iterator>( _data ) + _offset + size();
+        return __data._storage + _offset + size();
     }
 
-    template <typename T>
-    typename veque<T>::const_iterator veque<T>::cend() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_iterator veque<T,Alloc>::cend() const noexcept
     {
-        return reinterpret_cast<iterator>( _data ) + _offset + size();
+        return __data._storage + _offset + size();
     }
 
-    template <typename T>
-    typename veque<T>::reverse_iterator veque<T>::rbegin() noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::reverse_iterator veque<T,Alloc>::rbegin() noexcept
     {
         return reverse_iterator(end());
     }
 
-    template <typename T>
-    typename veque<T>::const_reverse_iterator veque<T>::crbegin() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_reverse_iterator veque<T,Alloc>::crbegin() const noexcept
     {
         return reverse_iterator(cend());
     }
 
-    template <typename T>
-    typename veque<T>::reverse_iterator veque<T>::rend() noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::reverse_iterator veque<T,Alloc>::rend() noexcept
     {
         return reverse_iterator(begin());
     }
 
-    template <typename T>
-    typename veque<T>::const_reverse_iterator veque<T>::crend() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_reverse_iterator veque<T,Alloc>::crend() const noexcept
     {
         return reverse_iterator(cbegin());
     }
 
-    template <typename T>
-    bool veque<T>::empty() const noexcept
+    template <typename T, typename Alloc>
+    bool veque<T,Alloc>::empty() const noexcept
     {
         return size() == 0;
     }
 
-    template <typename T>
-    typename veque<T>::size_type veque<T>::size() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::size_type veque<T,Alloc>::size() const noexcept
     {
         return _size;
     }
 
-    template <typename T>
-    typename veque<T>::ssize_type veque<T>::ssize() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::ssize_type veque<T,Alloc>::ssize() const noexcept
     {
         return _size;
     }
 
-    template <typename T>
-    typename veque<T>::size_type veque<T>::max_size() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::size_type veque<T,Alloc>::max_size() const noexcept
     {
         return std::numeric_limits<ssize_type>::max();
     }
 
-    template <typename T>
-    typename veque<T>::size_type veque<T>::capacity_full() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::size_type veque<T,Alloc>::capacity_full() const noexcept
     {
-        return _allocated;
+        return __data._allocated;
     }
 
-    template <typename T>
-    typename veque<T>::size_type veque<T>::capacity_front() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::size_type veque<T,Alloc>::capacity_front() const noexcept
     {
         return _offset + size();
     }
 
-    template <typename T>
-    typename veque<T>::size_type veque<T>::capacity_back() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::size_type veque<T,Alloc>::capacity_back() const noexcept
     {
         return capacity_full() - _offset;
     }
 
-    template <typename T>
-    typename veque<T>::size_type veque<T>::capacity() const noexcept
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::size_type veque<T,Alloc>::capacity() const noexcept
     {
         return capacity_back();
     }
 
-    template <typename T>
-    void veque<T>::resize_back( veque<T>::size_type count )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize_back( veque<T,Alloc>::size_type count )
     {
         if ( count > size() )
         {
@@ -676,8 +722,8 @@
         _size = count;
     }
 
-    template <typename T>
-    void veque<T>::resize_back( veque<T>::size_type count, const T & value )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize_back( veque<T,Alloc>::size_type count, const T & value )
     {
         if ( count > size() )
         {
@@ -694,8 +740,8 @@
         _size = count;
     }
 
-    template <typename T>
-    void veque<T>::resize_front( veque<T>::size_type count )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize_front( veque<T,Alloc>::size_type count )
     {
         difference_type delta = count - size();
         auto new_begin = begin() - delta;
@@ -715,8 +761,8 @@
         _offset -= delta;
     }
 
-    template <typename T>
-    void veque<T>::resize_front( veque<T>::size_type count, const T & value )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize_front( veque<T,Alloc>::size_type count, const T & value )
     {
         difference_type delta = count - size();
         auto new_begin = begin() - delta;
@@ -736,21 +782,21 @@
         _offset -= delta;
     }
     
-    template <typename T>
-    void veque<T>::resize( veque<T>::size_type count )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize( veque<T,Alloc>::size_type count )
     {
         resize_back( count );
     }
     
     
-    template <typename T>
-    void veque<T>::resize( veque<T>::size_type count, const T & value )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize( veque<T,Alloc>::size_type count, const T & value )
     {
         resize_back( count, value );
     }
     
-    template <typename T>
-    void veque<T>::reserve_front( veque<T>::size_type count )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::reserve_front( veque<T,Alloc>::size_type count )
     {
         if ( count > capacity_front() )
         {
@@ -758,8 +804,8 @@
         }
     }
 
-    template <typename T>
-    void veque<T>::reserve_back( veque<T>::size_type count )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::reserve_back( veque<T,Alloc>::size_type count )
     {
         if ( count > capacity_back() )
         {
@@ -767,8 +813,8 @@
         }
     }
 
-    template <typename T>
-    void veque<T>::reserve( veque<T>::size_type count )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::reserve( veque<T,Alloc>::size_type count )
     {
         if ( count > capacity_front() || count > capacity_back() )
         {
@@ -778,8 +824,8 @@
         }
     }
 
-    template <typename T>
-    void veque<T>::shrink_to_fit()
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::shrink_to_fit()
     {
         if ( size() < capacity_front() || size() < capacity_back() )
         {
@@ -787,20 +833,20 @@
         }
     }
 
-    template <typename T>
-    typename veque<T>::reference veque<T>::operator[]( veque<T>::size_type idx)
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::reference veque<T,Alloc>::operator[]( veque<T,Alloc>::size_type idx)
     {
         return *(begin() + idx);
     }
 
-    template <typename T>
-    typename veque<T>::const_reference veque<T>::operator[]( veque<T>::size_type idx) const
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_reference veque<T,Alloc>::operator[]( veque<T,Alloc>::size_type idx) const
     {
         return *(begin() + idx);
     }
 
-    template <typename T>
-    typename veque<T>::reference veque<T>::at(size_type pos)
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::reference veque<T,Alloc>::at(size_type pos)
     {
         if ( pos >= size() )
         {
@@ -809,8 +855,8 @@
         return (*this)[pos];
     }
 
-    template <typename T>
-    typename veque<T>::const_reference veque<T>::at(size_type pos) const
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_reference veque<T,Alloc>::at(size_type pos) const
     {
         if ( pos >= size() )
         {
@@ -819,45 +865,45 @@
         return (*this)[pos];
     }
 
-    template <typename T>
-    typename veque<T>::reference veque<T>::front()
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::reference veque<T,Alloc>::front()
     {
         return (*this)[0];
     }
 
-    template <typename T>
-    typename veque<T>::const_reference veque<T>::front() const
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_reference veque<T,Alloc>::front() const
     {
         return (*this)[0];
     }
 
-    template <typename T>
-    typename veque<T>::reference veque<T>::back()
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::reference veque<T,Alloc>::back()
     {
         return (*this)[size() - 1];
     }
 
-    template <typename T>
-    typename veque<T>::const_reference veque<T>::back() const
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::const_reference veque<T,Alloc>::back() const
     {
         return (*this)[size() - 1];
     }
 
-    template <typename T>
-    T * veque<T>::data() noexcept
+    template <typename T, typename Alloc>
+    T * veque<T,Alloc>::data() noexcept
     {
         return &begin();
     }
 
-    template <typename T>
-    const T * veque<T>::data() const noexcept
+    template <typename T, typename Alloc>
+    const T * veque<T,Alloc>::data() const noexcept
     {
         return &cbegin();
     }
 
-    template <typename T>
+    template <typename T, typename Alloc>
     template <class ... Args>
-    void veque<T>::emplace_back(Args && ... args)
+    void veque<T,Alloc>::emplace_back(Args && ... args)
     {
         if ( size() == capacity_back() )
         {
@@ -867,8 +913,8 @@
         ++_size;
     }
 
-    template <typename T>
-    void veque<T>::push_back(const T &val)
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::push_back(const T &val)
     {
         if ( size() == capacity_back() )
         {
@@ -878,8 +924,8 @@
         ++_size;
     }
 
-    template <typename T>
-    void veque<T>::push_back(T &&val)
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::push_back(T &&val)
     {
         if ( size() == capacity_back() )
         {
@@ -889,16 +935,16 @@
         ++_size;
     }
 
-    template <typename T>
-    void veque<T>::pop_back()
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::pop_back()
     {
         back().~T();
         --_size;
     }
 
-    template <typename T>
+    template <typename T, typename Alloc>
     template <class ... Args>
-    void veque<T>::emplace_front(Args && ... args)
+    void veque<T,Alloc>::emplace_front(Args && ... args)
     {
         if ( size() == capacity_front() )
         {
@@ -909,8 +955,8 @@
         --_offset;
     }
 
-    template <typename T>
-    void veque<T>::push_front(const T &val)
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::push_front(const T &val)
     {
         if ( size() == capacity_front() )
         {
@@ -921,8 +967,8 @@
         --_offset;
     }
 
-    template <typename T>
-    void veque<T>::push_front(T &&val)
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::push_front(T &&val)
     {
         if ( size() == capacity_front() )
         {
@@ -933,41 +979,41 @@
         --_offset;
     }
 
-    template <typename T>
-    void veque<T>::pop_front()
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::pop_front()
     {
         front().~T();
         --_size;
         ++_offset;
     }
 
-    template <typename T>
+    template <typename T, typename Alloc>
     template <class ... Args>
-    typename veque<T>::iterator veque<T>::emplace( typename veque<T>::const_iterator it, Args && ... args )
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::emplace( typename veque<T,Alloc>::const_iterator it, Args && ... args )
     {
         auto res = priv_insert_storage( it, 1 );
         new (res) T( std::forward<Args>(args)... );
         return res;
     }
     
-    template <typename T>
-    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, const T &val )
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( typename veque<T,Alloc>::const_iterator it, const T &val )
     {
         auto res = priv_insert_storage( it, 1 );
         new (res) T( val );
         return res;
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, T &&val )
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( typename veque<T,Alloc>::const_iterator it, T &&val )
     {
         auto res = priv_insert_storage( it, 1 );
         new (res) T( std::move(val) );
         return res;
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it,  veque<T>::size_type cnt, const T &val )
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( typename veque<T,Alloc>::const_iterator it,  veque<T,Alloc>::size_type cnt, const T &val )
     {
         auto res = priv_insert_storage( it, cnt );
         for ( iterator i = res; i != res + cnt; ++i)
@@ -975,9 +1021,9 @@
         return res;
     }
 
-    template <typename T>
+    template <typename T, typename Alloc>
     template <class InputIt>
-    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, InputIt first, InputIt last )
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( typename veque<T,Alloc>::const_iterator it, InputIt first, InputIt last )
     {
         auto res = priv_insert_storage( it, std::distance(first,last) );
         auto dest = res;
@@ -988,8 +1034,8 @@
         return res;
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::insert( typename veque<T>::const_iterator it, std::initializer_list<T> lst )
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( typename veque<T,Alloc>::const_iterator it, std::initializer_list<T> lst )
     {
         auto res = priv_insert_storage( it, lst.size() );
         auto dest = res;
@@ -1001,14 +1047,14 @@
         return res;
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::erase(typename veque<T>::const_iterator it)
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::erase(typename veque<T,Alloc>::const_iterator it)
     {
         return erase( it, it + 1 );
     }
 
-    template <typename T>
-    typename veque<T>::iterator veque<T>::erase(typename veque<T>::const_iterator first,  veque<T>::const_iterator last)
+    template <typename T, typename Alloc>
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::erase(typename veque<T,Alloc>::const_iterator first,  veque<T,Alloc>::const_iterator last)
     {
         auto elements_before = first - begin();
         auto elements_after = end() - last;
@@ -1023,25 +1069,24 @@
         }
     }
 
-    template <typename T>
-    void veque<T>::swap( veque<T> &other )
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::swap( veque<T> &other )
     {
         std::swap( _size,      other._size );
-        std::swap( _allocated, other._allocated );
         std::swap( _offset,    other._offset );
-        std::swap( _data,      other._data );
+        std::swap( __data,      other.__data );
     }
 
-    template <typename T>
-    void veque<T>::clear() noexcept
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::clear() noexcept
     {
         priv_destroy( begin(), end() );
         _size = 0;
         _offset = capacity_full() / 2;
     }
 
-    template <typename T>
-    bool operator==(const veque<T> &lhs, const veque<T> &rhs)
+    template <typename T, typename Alloc>
+    bool operator==(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
     {
         if ( lhs.size() != rhs.size() )
         {
@@ -1050,32 +1095,32 @@
         return std::equal( lhs.cbegin(), lhs.cend(), rhs.cbegin() );
     }
 
-    template <typename T>
-    bool operator!=(const veque<T> &lhs, const veque<T> &rhs)
+    template <typename T, typename Alloc>
+    bool operator!=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
     {
         return !( lhs == rhs );
     }
 
-    template <typename T>
-    bool operator<(const veque<T> &lhs, const veque<T> &rhs)
+    template <typename T, typename Alloc>
+    bool operator<(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
     {
         return std::lexicographical_compare( lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend() );
     }
 
-    template <typename T>
-    bool operator<=(const veque<T> &lhs, const veque<T> &rhs)
+    template <typename T, typename Alloc>
+    bool operator<=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
     {
         return !( rhs < lhs );
     }
 
-    template <typename T>
-    bool operator>(const veque<T> &lhs, const veque<T> &rhs)
+    template <typename T, typename Alloc>
+    bool operator>(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
     {
         return ( rhs < lhs );
     }
 
-    template <typename T>
-    bool operator>=(const veque<T> &lhs, const veque<T> &rhs)
+    template <typename T, typename Alloc>
+    bool operator>=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
     {
         return !( lhs < rhs );
     }
