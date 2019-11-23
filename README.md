@@ -3,7 +3,7 @@ Very fast C++17 container combining the best features of `std::vector` and `std:
 
 > _"In Most Cases, Prefer Using deque (Controversial)"_
 >
-> -Herb Sutter, GotW #54
+> -Herb Sutter, [GotW #54](http://www.gotw.ca/gotw/054.htm)
 
 `std::vector` has maintained popular usage as a C++ standard container.  It's cache-friendly.  It maintains array layout.  Its iterator invalidation rules are somewhat complex, but developers have learned them.
 
