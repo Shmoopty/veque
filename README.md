@@ -29,6 +29,10 @@ In addition, **veque** provides the following additional functions:
 * `capacity_back()` (Same as `capacity()`, for `std::vector` parity)
 * `capacity_full()`
 
+### Tradeoffs
+Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
+* **veque** is a bit more eager to preallocate memory than a typical `std::vector` implementation, to anticipate resizing from either end.
+* `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
+
 ### To do:
-* Implement `std::hash<veque>`
 * Allocator support?
