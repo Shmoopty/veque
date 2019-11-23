@@ -8,7 +8,7 @@
 #define CATCH_CONFIG_MAIN
 
 #include "catch.hpp"
-#include "../include/veque.hpp"
+#include "include/veque.hpp"
 #include <vector>
 #include <string> 
 #include <unordered_set> 
@@ -127,49 +127,53 @@ TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool
         REQUIRE( v.size() == 0 );
         REQUIRE( v.capacity() >= 5 );
 
+        v.resize( 5 );
+
         SECTION( "We can use the 'swap trick' to reset the capacity" )
         {
-            veque<TestType> empty;
-            empty.swap( v );
+            veque<TestType>( v ).swap( v );
 
-            REQUIRE( v.capacity() == 0 );
+            REQUIRE( v.capacity() == 5 );
         }
         SECTION( "Or we can use shrink_to_fit()" )
         {
+            REQUIRE( v.size() == 5 );
+
             v.shrink_to_fit();
 
-            REQUIRE( v.capacity() == 0 );
+            CHECK( v.size() == 5 );
+            CHECK( v.capacity() == 5 );
         }
     }
     SECTION( "reserving smaller does not change size or capacity" )
     {
         v.reserve( 0 );
 
-        REQUIRE( v.size() == 5 );
-        REQUIRE( v.capacity() >= 5 );
+        CHECK( v.size() == 5 );
+        CHECK( v.capacity() >= 5 );
     }
     SECTION( "clearing" )
     {
         v.clear();
 
-        REQUIRE( v.size() == 0 );
-        REQUIRE( v.empty() );
+        CHECK( v.size() == 0 );
+        CHECK( v.empty() );
     }
     SECTION( "reserve_front" )
     {
         v.reserve_front( 20 );
-        REQUIRE( v.capacity_front() >= 20 );
+        CHECK( v.capacity_front() >= 20 );
     }
     SECTION( "reserve_back" )
     {
         v.reserve_back( 20 );
-        REQUIRE( v.capacity_back() >= 20 );
+        CHECK( v.capacity_back() >= 20 );
     }
     SECTION( "reserve" )
     {
         v.reserve( 20 );
-        REQUIRE( v.capacity_front() >= 20 );
-        REQUIRE( v.capacity_back() >= 20 );
+        CHECK( v.capacity_front() >= 20 );
+        CHECK( v.capacity_back() >= 20 );
     }
     SECTION( "reserve less" )
     {
@@ -178,8 +182,8 @@ TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool
 
         v.reserve( 0 );
         
-        REQUIRE( v.capacity_front() == old_capacity_front );
-        REQUIRE( v.capacity_back() == old_capacity_back );
+        CHECK( v.capacity_front() == old_capacity_front );
+        CHECK( v.capacity_back() == old_capacity_back );
     }
 }
 
@@ -849,29 +853,29 @@ TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, doubl
     }
 }
 
-TEMPLATE_TEST_CASE( "hashing", "[veque][template]", bool, int, std::string )
+TEMPLATE_TEST_CASE( "hashing", "[veque][template]", int, std::string, double )
 {
-    std::unordered_set<veque<TestType>> set;
+    std::unordered_set<veque<TestType>> uset;
     
-    set.emplace( val<TestType,1> )
-    set.emplace( val<TestType,2> )
-    set.emplace( val<TestType,3> )
+    uset.emplace( veque<TestType>{val<TestType,1>} );
+    uset.emplace( veque<TestType>{val<TestType,2>} );
+    uset.emplace( veque<TestType>{val<TestType,3>} );
 
-    CHECK( set.size() == 3 );
-    CHECK( set.count(val<TestType,0>) == 0 );
-    CHECK( set.count(val<TestType,1>) == 1 );
-    CHECK( set.count(val<TestType,2>) == 1 );
-    CHECK( set.count(val<TestType,3>) == 1 );
-    CHECK( set.count(val<TestType,4>) == 0 );
-    CHECK( set.count(val<TestType,5>) == 0 );
+    CHECK( uset.size() == 3 );
+    CHECK( uset.count(veque<TestType>{val<TestType,0>}) == 0 );
+    CHECK( uset.count(veque<TestType>{val<TestType,1>}) == 1 );
+    CHECK( uset.count(veque<TestType>{val<TestType,2>}) == 1 );
+    CHECK( uset.count(veque<TestType>{val<TestType,3>}) == 1 );
+    CHECK( uset.count(veque<TestType>{val<TestType,4>}) == 0 );
+    CHECK( uset.count(veque<TestType>{val<TestType,5>}) == 0 );
 
-    set.emplace( val<TestType,3> )
+    uset.emplace( veque<TestType>{val<TestType,3>} );
 
-    CHECK( set.size() == 3 );
-    CHECK( set.count(val<TestType,0>) == 0 );
-    CHECK( set.count(val<TestType,1>) == 1 );
-    CHECK( set.count(val<TestType,2>) == 1 );
-    CHECK( set.count(val<TestType,3>) == 1 );
-    CHECK( set.count(val<TestType,4>) == 0 );
-    CHECK( set.count(val<TestType,5>) == 0 );
+    CHECK( uset.size() == 3 );
+    CHECK( uset.count(veque<TestType>{val<TestType,0>}) == 0 );
+    CHECK( uset.count(veque<TestType>{val<TestType,1>}) == 1 );
+    CHECK( uset.count(veque<TestType>{val<TestType,2>}) == 1 );
+    CHECK( uset.count(veque<TestType>{val<TestType,3>}) == 1 );
+    CHECK( uset.count(veque<TestType>{val<TestType,4>}) == 0 );
+    CHECK( uset.count(veque<TestType>{val<TestType,5>}) == 0 );
 }
