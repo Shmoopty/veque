@@ -35,4 +35,4 @@ Is **veque** better than `std::vector` in every conceivable way?  No.  But the t
 * `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
 
 ### To do:
-* Allocator support?
+* Perhaps C++14 support?
