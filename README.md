@@ -7,7 +7,7 @@ Very fast C++17 container combining the best features of `std::vector` and `std:
 
 `std::vector` has maintained popular usage as a C++ standard container.  It's cache-friendly.  It maintains array layout.  Its iterator invalidation rules are somewhat complex, but developers have learned them.
 
-`std::deque`, however, has grown increasingly unpopular.  Nearly to the extent of `std::list`, and for similar reasons - it is non-contiguous and _very_ cache-unfriendly to iterate.
+`std::deque`, despite having fast insertion and removal from both ends of the container, has not been able to reach popular use.  Nearly to the extent of `std::list`, and for similar reasons - it is non-contiguous and _very_ cache-unfriendly to iterate.
 
 **veque** is an efficient container with interface and organization very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** distributes its unused space both _before_ and _after_ the used storage. 
 
