@@ -1069,7 +1069,7 @@
     template <typename T, typename Alloc>
     T veque<T,Alloc>::pop_back_instance()
     {
-        auto res( nothrow_move(back()) );
+        auto res( std::move(back()) );
         std::allocator_traits<Alloc>::destroy( priv_allocator(), &back() );
         --_size;
         return res;
@@ -1124,7 +1124,7 @@
     template <typename T, typename Alloc>
     T veque<T,Alloc>::pop_front_instance()
     {
-        auto res( nothrow_move(front()) );
+        auto res( std::move(front()) );
         std::allocator_traits<Alloc>::destroy( priv_allocator(), &front() );
         --_size;
         ++_offset;
