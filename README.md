@@ -17,7 +17,7 @@ Very fast C++17 container combining the best features of `std::vector` and `std:
 * Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
-The interface for **veque** includes the entire interface for `std::vector`, includeing C++17 and C++20 interface and noexcept specifications.  allowing **veque** to be used as a drop-in replacement.
+The interface for **veque** includes the entire interface for `std::vector`, including C++17 and C++20 interface and noexcept specifications.  allowing **veque** to be used as a drop-in replacement.
 
 In addition, **veque** provides the following additional functions:
 * `push_front()`
