@@ -17,7 +17,7 @@ Very fast C++17 container combining the best features of `std::vector` and `std:
 * Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
-The interface for **veque** includes the entire interface for `std::vector`, with the same iterator invalidation rules and expectations.  allowing **veque** to be used as a drop-in replacement.
+The interface for **veque** includes the entire interface for `std::vector`, includeing C++17 and C++20 interface and noexcept specifications.  allowing **veque** to be used as a drop-in replacement.
 
 In addition, **veque** provides the following additional functions:
 * `push_front()`
@@ -32,6 +32,7 @@ In addition, **veque** provides the following additional functions:
 ### Tradeoffs
 Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
 * **veque** is a bit more eager to preallocate memory than a typical `std::vector` implementation, to anticipate resizing from either end.
+* `insert()` and `erase()` function calls should be assumed to invalidate all iterators, since the resizing could happen from either direction.  By comparison, `std::vector` operations will sometimes only invalidate some of the iterators.
 * `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
 
 ### To do:
