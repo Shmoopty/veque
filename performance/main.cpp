@@ -7,28 +7,28 @@
  * SAMPLE OUTPUT:
 
 testing std::deque
-    6052 us resizing_test time
-   14431 us back_growth_test time
-   12193 us front_growth_test time
-  410732 us arbitrary_insertion_test time
-   59103 us iteration_test time
-  502512 us total time
+     5,340 us resizing_test time
+    10,860 us back_growth_test time
+     8,646 us front_growth_test time
+   306,541 us arbitrary_insertion_test time
+    57,627 us iteration_test time
+   389,016 us total time
 
 testing std::vector
-    1914 us resizing_test time
-   19277 us back_growth_test time
- 1377079 us front_growth_test time
-  583795 us arbitrary_insertion_test time
-   37729 us iteration_test time
- 2019797 us total time
+     1,708 us resizing_test time
+    16,845 us back_growth_test time
+ 1,351,052 us front_growth_test time
+   344,892 us arbitrary_insertion_test time
+    46,995 us iteration_test time
+ 1,761,494 us total time
 
 testing veque
-     847 us resizing_test time
-   17490 us back_growth_test time
-    9755 us front_growth_test time
-  174511 us arbitrary_insertion_test time
-   28383 us iteration_test time
-  230987 us total time
+       918 us resizing_test time
+    15,424 us back_growth_test time
+    10,304 us front_growth_test time
+   133,940 us arbitrary_insertion_test time
+    37,462 us iteration_test time
+   198,050 us total time
 
 
  */
@@ -119,15 +119,24 @@ int resizing_test(int i) {
     Container v(5);
 
     v.resize(15);
+    
+    auto a = v[0];
+    auto b = v[14];
 
     v.resize(999);
 
+    auto c = v[0];
+    auto d = v[998];
+    
     v.resize(0);
 
     v.resize(999);
 
     v.resize(5);
 
+    auto e = v[0];
+    auto f = v[4];
+    
     v.shrink_to_fit();
 }
 
@@ -143,6 +152,7 @@ int back_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -157,6 +167,7 @@ int back_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -171,6 +182,7 @@ int back_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -193,6 +205,7 @@ int front_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -211,6 +224,7 @@ int front_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -229,6 +243,7 @@ int front_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -247,6 +262,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -262,6 +278,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -277,6 +294,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -292,6 +310,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.back();
             v.pop_back();
             --size;
         }
@@ -307,6 +326,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.front();
             v.erase(v.begin());
             --size;
         }
@@ -328,6 +348,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
+            auto x = v.front();
             v.erase(v.begin());
             --size;
         }
@@ -351,7 +372,9 @@ int iteration_test(int i) {
     }
 
     for (auto && val : v) {
-        for (auto c = reinterpret_cast<char*>(&val); c != reinterpret_cast<char*>(&val) + sizeof(val); ++c ) {
+        auto x = val;
+        
+        for (auto c = reinterpret_cast<char*>(&x); c != reinterpret_cast<char*>(&x) + sizeof(x); ++c ) {
             i += *c;
         }
     }
