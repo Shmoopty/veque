@@ -48,7 +48,8 @@
         template <typename InputIt>
         veque( InputIt first,  InputIt last, const Allocator& = Allocator() );
         veque( std::initializer_list<T>, const Allocator& = Allocator() );
-        veque( const veque &, const Allocator& = Allocator() );
+        veque( const veque & );
+        veque( const veque &, const Allocator& );
         veque( veque && ) noexcept;
         veque( veque &&, const Allocator& ) noexcept;
         ~veque();
@@ -527,6 +528,20 @@
     }
 
     template <typename T, typename Alloc>
+    veque<T,Alloc>::veque( const veque &other )
+        : _size{ other._size }
+        , _offset{ 0 }
+        , _data { other._size, std::allocator_traits<Alloc>::select_on_container_copy_construction( other.priv_allocator() ) }
+    {
+        auto first = other.cbegin();
+        for ( auto && dest : *this )
+        {
+            std::allocator_traits<Alloc>::construct( priv_allocator(), &dest, *first );
+            ++first;
+        }
+    }
+
+    template <typename T, typename Alloc>
     veque<T,Alloc>::veque( const veque &other, const Alloc& alloc )
         : _size{ other._size }
         , _offset{ 0 }
@@ -542,11 +557,8 @@
 
     template <typename T, typename Alloc>
     veque<T,Alloc>::veque(veque &&other) noexcept
-        : _size{ 0 }
-        , _offset{ 0 }
-        , _data{ nullptr }
+        : veque( other, other.priv_allocator() )
     {
-        swap( other );
     }
      
     template <typename T, typename Alloc>
@@ -567,22 +579,22 @@
             }
             else
             {
-                veque newvec( other.size(), alloc );
+                veque replacement( other.size(), alloc );
                 if constexpr ( std::is_trivially_copyable_v<T> )
                 {
-                    std::memcpy( newvec.begin(), other.begin(), other.size() * sizeof(T) );
+                    std::memcpy( replacement.begin(), other.begin(), other.size() * sizeof(T) );
                 }
                 else
                 {
-                    auto dest = newvec.begin();
+                    auto dest = replacement.begin();
                     for ( auto && src : other )
                     {
                         priv_nothrow_move_construct( dest, &src );                  
                         ++dest;
                     }
                 }
-                newvec._size = other.size();
-                swap(newvec);            
+                replacement._size = other.size();
+                swap(replacement);            
             }
         }
     }
