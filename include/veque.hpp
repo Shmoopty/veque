@@ -176,7 +176,7 @@
         
         struct allocate_uninitialized_tag {};
 
-        // Create an empty veque, with specified storage params
+        // Create an empty veque, with storage for expected size
         veque( allocate_uninitialized_tag, size_type size, const Allocator& );
         // Create an empty veque, with specified storage params
         veque( size_type allocated, size_type offset, const Allocator& );
