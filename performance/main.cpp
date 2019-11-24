@@ -220,7 +220,7 @@ int front_growth_test(int i) {
 
         typename Container::value_type val{};
         for (int i = 0; i < 2'000; ++i) {
-            if constexpr( std::is_same_v<Container, std::vector < typename Container::value_type>>)
+            if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>>)
                 v.insert(v.begin(), val);
             else
                 v.push_front(val);
@@ -229,6 +229,7 @@ int front_growth_test(int i) {
         while (v.size()) {
             auto x = v.back();
             v.pop_back();
+            i += *reinterpret_cast<char*>(&x);
             --size;
         }
     }
@@ -246,9 +247,18 @@ int front_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
-            v.pop_back();
-            --size;
+            if constexpr( std::is_same_v<Container, veque<typename Container::value_type>>)
+            {
+                auto x = v.pop_back_instance();
+                i += *reinterpret_cast<char*>(&x);
+            }
+            else
+            {
+                // Closest functionality match
+                auto x = v.back();
+                v.pop_back();
+                i += *reinterpret_cast<char*>(&x);
+            }
         }
     }
 
@@ -265,11 +275,27 @@ int front_growth_test(int i) {
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
-            v.pop_back();
-            --size;
+            if constexpr( std::is_same_v<Container, veque<typename Container::value_type>>)
+            {
+                auto x = v.pop_front_instance();
+                i += *reinterpret_cast<char*>(&x);
+            }
+            else if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>>)
+            {
+                auto x = v.front();
+                v.erase( v.begin() );
+                i += *reinterpret_cast<char*>(&x);
+            }
+            else
+            {
+                // Closest functionality match
+                auto x = v.front();
+                v.pop_front();
+                i += *reinterpret_cast<char*>(&x);
+            }
         }
     }
+    return i;
 }
 
 template< typename Container >
