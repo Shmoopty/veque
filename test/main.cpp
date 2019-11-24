@@ -575,7 +575,7 @@ template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 
-TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, std::string, std::vector<int> )
+TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, std::string, double, std::vector<int> )
 {
     veque<TestType> veq;
     std::vector<TestType> vec;
@@ -725,7 +725,7 @@ TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, st
     }
 }
 
-TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std::string, std::vector<int> )
+TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std::string, double, std::vector<int> )
 {
     veque<TestType> veq;
     std::deque<TestType> deq;
@@ -977,6 +977,7 @@ TEMPLATE_TEST_CASE( "veque element ordering and access", "[veque][template]", in
 
 TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, double, std::vector<int> )
 {
+    // (Template deduction guide)
     veque veq{ val<TestType,1>, val<TestType,2>, val<TestType,3>  };
     veq.reserve(20);
     
