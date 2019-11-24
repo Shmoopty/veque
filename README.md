@@ -9,7 +9,7 @@ Very fast C++17 container combining the best features of `std::vector` and `std:
 
 `std::deque`, despite having fast insertion and removal from both ends of the container, has not been able to reach popular use.  Nearly to the extent of `std::list`, and for similar reasons - it is non-contiguous and _very_ cache-unfriendly to iterate.
 
-**veque** is an efficient container with interface and organization very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** distributes its unused space both _before_ and _after_ the used storage. 
+**veque** is an efficient container with interface matching both `std::vector` and `std::deque`.  Its organization is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
 
 ### Features
 * Like `std::vector`, **veque** is an ordered container, in cache-friendly, array-compatible contiguous memory.
@@ -32,7 +32,7 @@ In addition, **veque** provides the following additional functions:
 ### Tradeoffs
 Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
 * **veque** is a bit more eager to preallocate memory than a typical `std::vector` implementation, to anticipate resizing from either end.
-* `insert()` and `erase()` function calls should be assumed to invalidate all iterators, since the resizing could happen from either direction.  By comparison, `std::vector` operations will sometimes only invalidate some of the iterators.
+* `insert()` and `erase()` function calls should be assumed to invalidate all iterators and references, since the resizing could happen from either direction.  By comparison, the same `std::vector` and `std::deque` operations will sometimes only invalidate *some* of the iterators and references.
 * `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
 
 ### To do:
