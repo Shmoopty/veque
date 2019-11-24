@@ -24,9 +24,9 @@ In addition, **veque** provides the following additional functions:
 * `emplace_front()`
 * `pop_front()`
 * `resize_front()`
-* `resize_back()` (Same as `resize()`, for `std::vector` parity)
+* `resize_back()` (Same as `resize()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_front()`
-* `capacity_back()` (Same as `capacity()`, for `std::vector` parity)
+* `capacity_back()` (Same as `capacity()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_full()`
 * `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 * `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
