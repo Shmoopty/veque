@@ -28,6 +28,8 @@ In addition, **veque** provides the following additional functions:
 * `capacity_front()`
 * `capacity_back()` (Same as `capacity()`, for `std::vector` parity)
 * `capacity_full()`
+* `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
+* `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 
 ### Tradeoffs
 Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
