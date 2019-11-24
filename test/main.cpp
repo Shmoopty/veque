@@ -16,6 +16,7 @@
 #include <string> 
 #include <unordered_set> 
 #include <string> 
+#include <functional> 
 
 
 // A trivial object should benefit from supporting memcpy/memmove
@@ -389,6 +390,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
         // Valgrind doesn't like std::random_device.
         //std::random_device rd;
         //std::mt19937 gen(rd());
+        srand(time(NULL));
         for ( int i = 0; i < 2'000; ++i )
         {
             TestType val{};
@@ -572,6 +574,314 @@ template<> const std::vector<int> val<std::vector<int>,3> = { 3, 4, 5 };
 template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
+
+TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, std::string, std::vector<int> )
+{
+    veque<TestType> veq;
+    std::vector<TestType> vec;
+
+    srand(time(NULL));
+    
+    auto tests = std::vector<std::function<void()>>{
+        [&]
+        {
+            INFO( "resize" );
+            auto new_size = rand() % 10'000;
+            veq.resize(new_size);
+            vec.resize(new_size);
+        },
+        [&]
+        {
+            INFO( "at" );
+            if ( veq.size() )
+            {
+                auto index = rand() % veq.size();
+                CHECK( veq.at(index) == vec.at(index) );
+            }
+        },
+        [&]
+        {
+            INFO( "[]" );
+            if ( veq.size() )
+            {
+                auto index = rand() % veq.size();
+                CHECK( veq[index] == vec[index] );
+            }
+        },
+        [&]
+        {
+            INFO( "front" );
+            if ( veq.size() )
+            {
+                CHECK( veq.front() == vec.front() );
+            }
+        },
+        [&]
+        {
+            INFO( "back" );
+            if ( veq.size() )
+            {
+                CHECK( veq.back() == vec.back() );
+            }
+        },
+        [&]
+        {
+            INFO( "push_back0" );
+            auto item = val<TestType,0>;
+            veq.push_back( item );
+            vec.push_back( item );
+        },
+        [&]
+        {
+            INFO( "push_back1" );
+            auto item = val<TestType,1>;
+            veq.push_back( TestType{item} );
+            vec.push_back( TestType{item} );
+        },
+        [&]
+        {
+            INFO( "emplace_back" );
+            auto item = val<TestType,4>;
+            veq.emplace_back( TestType{item} );
+            vec.emplace_back( TestType{item} );
+        },
+        [&]
+        {
+            INFO( "insert2" );
+            auto item = val<TestType,2>;
+            auto index = veq.size() ? rand() % veq.size() : 0;
+            veq.insert( veq.begin() + index, item );
+            vec.insert( vec.begin() + index, item );
+        },
+        [&]
+        {
+            INFO( "insert3" );
+            auto item = val<TestType,3>;
+            auto index = veq.size() ? rand() % veq.size() : 0;
+            veq.insert( veq.begin() + index, TestType{item} );
+            vec.insert( vec.begin() + index, TestType{item});
+        },
+        [&]
+        {
+            INFO( "emplace" );
+            auto item = val<TestType,3>;
+            auto index = veq.size() ? rand() % veq.size() : 0;
+            veq.emplace( veq.begin() + index );
+            vec.emplace( vec.begin() + index );
+        },
+        [&]
+        {
+            INFO( "begin" );
+            if ( veq.size() )
+            {
+                CHECK( *veq.begin() == *vec.begin() );
+            }
+        },
+        [&]
+        {
+            INFO( "rbegin" );
+            if ( veq.size() )
+            {
+                CHECK( *veq.rbegin() == *vec.rbegin() );
+            }
+        },
+        [&]
+        {
+            INFO( "clear" );
+            veq.clear();
+            vec.clear();
+        },
+        [&]
+        {
+            INFO( "reserve" );
+            auto new_size = rand() % 10'000;
+            veq.reserve(new_size);
+            vec.reserve(new_size);
+        },
+        [&]
+        {
+            INFO( "reserve" );
+            auto new_size = rand() % 10'000;
+            veq.reserve(new_size);
+            vec.reserve(new_size);
+        },
+        [&]
+        {
+            INFO( "swap" );
+            if ( vec.size() > 2 )
+            {
+                auto veq2 = veque<TestType>( veq.begin() + 1, veq.end() - 1 );
+                auto vec2 = std::vector<TestType>( vec.begin() + 1, vec.end() - 1 );
+                veq.swap( veq2 );
+                vec.swap( vec2 );
+            }
+        }
+    };
+
+    for ( auto test_counter = 0; test_counter != 20'000; ++test_counter )
+    {
+        tests[ rand() % tests.size() ]();
+        REQUIRE( std::equal( veq.begin(), veq.end(), vec.begin(), vec.end() ) );
+    }
+}
+
+TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std::string, std::vector<int> )
+{
+    veque<TestType> veq;
+    std::deque<TestType> deq;
+
+    srand(time(NULL));
+    
+    auto tests = std::vector<std::function<void()>>{
+        [&]
+        {
+            INFO( "resize" );
+            auto new_size = rand() % 10'000;
+            veq.resize(new_size);
+            deq.resize(new_size);
+        },
+        [&]
+        {
+            INFO( "at" );
+            if ( veq.size() )
+            {
+                auto index = rand() % veq.size();
+                CHECK( veq.at(index) == deq.at(index) );
+            }
+        },
+        [&]
+        {
+            INFO( "[]" );
+            if ( veq.size() )
+            {
+                auto index = rand() % veq.size();
+                CHECK( veq[index] == deq[index] );
+            }
+        },
+        [&]
+        {
+            INFO( "front" );
+            if ( veq.size() )
+            {
+                CHECK( veq.front() == deq.front() );
+            }
+        },
+        [&]
+        {
+            INFO( "back" );
+            if ( veq.size() )
+            {
+                CHECK( veq.back() == deq.back() );
+            }
+        },
+        [&]
+        {
+            INFO( "push_back0" );
+            auto item = val<TestType,0>;
+            veq.push_back( item );
+            deq.push_back( item );
+        },
+        [&]
+        {
+            INFO( "push_back1" );
+            auto item = val<TestType,1>;
+            veq.push_back( TestType{item} );
+            deq.push_back( TestType{item} );
+        },
+        [&]
+        {
+            INFO( "emplace_back" );
+            auto item = val<TestType,4>;
+            veq.emplace_back( TestType{item} );
+            deq.emplace_back( TestType{item} );
+        },
+        [&]
+        {
+            INFO( "push_front5" );
+            auto item = val<TestType,5>;
+            veq.push_front( item );
+            deq.push_front( item );
+        },
+        [&]
+        {
+            INFO( "push_front4" );
+            auto item = val<TestType,4>;
+            veq.push_front( TestType{item} );
+            deq.push_front( TestType{item} );
+        },
+        [&]
+        {
+            INFO( "emplace_front" );
+            auto item = val<TestType,4>;
+            veq.emplace_front( TestType{item} );
+            deq.emplace_front( TestType{item} );
+        },
+        [&]
+        {
+            INFO( "insert2" );
+            auto item = val<TestType,2>;
+            auto index = veq.size() ? rand() % veq.size() : 0;
+            veq.insert( veq.begin() + index, item );
+            deq.insert( deq.begin() + index, item );
+        },
+        [&]
+        {
+            INFO( "insert3" );
+            auto item = val<TestType,3>;
+            auto index = veq.size() ? rand() % veq.size() : 0;
+            veq.insert( veq.begin() + index, TestType{item} );
+            deq.insert( deq.begin() + index, TestType{item});
+        },
+        [&]
+        {
+            INFO( "emplace" );
+            auto item = val<TestType,3>;
+            auto index = veq.size() ? rand() % veq.size() : 0;
+            veq.emplace( veq.begin() + index );
+            deq.emplace( deq.begin() + index );
+        },
+        [&]
+        {
+            INFO( "begin" );
+            if ( veq.size() )
+            {
+                CHECK( *veq.begin() == *deq.begin() );
+            }
+        },
+        [&]
+        {
+            INFO( "rbegin" );
+            if ( veq.size() )
+            {
+                CHECK( *veq.rbegin() == *deq.rbegin() );
+            }
+        },
+        [&]
+        {
+            INFO( "clear" );
+            veq.clear();
+            deq.clear();
+        },
+        [&]
+        {
+            INFO( "swap" );
+            if ( deq.size() > 2 )
+            {
+                auto veq2 = veque<TestType>( veq.begin() + 1, veq.end() - 1 );
+                auto vec2 = std::deque<TestType>( deq.begin() + 1, deq.end() - 1 );
+                veq.swap( veq2 );
+                deq.swap( vec2 );
+            }
+        }
+    };
+
+    for ( auto test_counter = 0; test_counter != 20'000; ++test_counter )
+    {
+        tests[ rand() % tests.size() ]();
+        REQUIRE( std::equal( veq.begin(), veq.end(), deq.begin(), deq.end() ) );
+    }
+}
+
 TEMPLATE_TEST_CASE( "veque element ordering and access", "[veque][template]", int, std::string, double, std::vector<int> )
 {
     veque<TestType> veq1;
@@ -667,7 +977,7 @@ TEMPLATE_TEST_CASE( "veque element ordering and access", "[veque][template]", in
 
 TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, double, std::vector<int> )
 {
-    veque<TestType> veq{ val<TestType,1>, val<TestType,2>, val<TestType,3>  };
+    veque veq{ val<TestType,1>, val<TestType,2>, val<TestType,3>  };
     veq.reserve(20);
     
     CHECK( !veq.empty() );

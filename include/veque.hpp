@@ -19,7 +19,11 @@
 #include <utility>
 
 #if __cplusplus >= 201703L
-#define CPP17 1
+#define VEQUE_HEADER_CPP17 1
+#endif
+
+#if __cplusplus >= 202000L
+#define VEQUE_HEADER_CPP20 1
 #endif
 
     template <typename T, typename Allocator = std::allocator<T> >
@@ -795,7 +799,7 @@
     template <typename T, typename Alloc>
     typename veque<T,Alloc>::size_type veque<T,Alloc>::max_size() const noexcept
     {
-        return std::numeric_limits<ssize_type>::max();
+        return std::min( std::numeric_limits<ssize_type>::max(), std::allocator_traits<Alloc>::max_size );
     }
 
     template <typename T, typename Alloc>
@@ -1288,6 +1292,11 @@
         lhs.swap(rhs);
     }
     
+    template< class InputIt,
+              class Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>>
+    veque(InputIt, InputIt, Alloc = Alloc())
+      -> veque<typename std::iterator_traits<InputIt>::value_type, Alloc>;
+
 namespace std
 {
     template <typename T, typename Alloc>
@@ -1304,18 +1313,6 @@ namespace std
             return hash;
         }
     };
-  
-    template< class T, class Alloc, class U >
-    void erase( veque<T,Alloc>& c, const U& value )
-    {
-        c.erase( std::remove(c.begin(), c.end(), value), c.end() );
-    }
-
-    template< class T, class Alloc, class Pred >
-    void erase_if( veque<T,Alloc>& c, Pred pred )
-    {
-        c.erase( std::remove_if(c.begin(), c.end(), pred), c.end() );
-    }
 }
 
 #endif
