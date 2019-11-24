@@ -1228,11 +1228,18 @@
         }
         else
         {
-            // Don't swap _data.allocator().  Like std::vector, UB if allocators don't compare equal
-            std::swap( _size,            other._size );
-            std::swap( _offset,          other._offset );
-            std::swap( _data._allocated, other._data._allocated);
-            std::swap( _data._storage,   other._data._storage);
+            if ( priv_allocator() == other.priv_allocator() )
+            {
+                // Don't swap _data.allocator().  Like std::vector, UB if allocators don't compare equal
+                std::swap( _size,            other._size );
+                std::swap( _offset,          other._offset );
+                std::swap( _data._allocated, other._data._allocated);
+                std::swap( _data._storage,   other._data._storage);
+            }
+            else
+            {
+                // UB
+            }
         }
     }
 

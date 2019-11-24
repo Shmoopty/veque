@@ -12,12 +12,63 @@
 
 #include "catch.hpp"
 #include "include/veque.hpp"
+#include <cstdint> 
 #include <vector>
 #include <string> 
 #include <unordered_set> 
 #include <string> 
 #include <functional> 
 
+// An allocator that is stateful, unlikely to be equal to another, and aware of being mismatched
+template<typename T>
+struct GrumpyStatefulAllocator
+{
+    using value_type = T;
+    static constexpr auto barrier_size = 64;
+    const std::uint32_t barrier = 0xDEADBEEF + rand();
+
+    GrumpyStatefulAllocator() = default;
+    GrumpyStatefulAllocator(const GrumpyStatefulAllocator &) = default;
+    template< class U >
+    GrumpyStatefulAllocator( const GrumpyStatefulAllocator<U>& other ) noexcept
+        : barrier{ other.barrier }
+    {
+    }
+
+    T* allocate( std::size_t n )
+    {
+        std::byte * ptr = reinterpret_cast<std::byte*>( std::malloc( n * sizeof(T) + 2 * barrier_size ) );
+        *reinterpret_cast<std::uint64_t*>(ptr) = barrier;
+        *reinterpret_cast<std::uint64_t*>(ptr + n * sizeof(T) + barrier_size) = barrier;
+        return reinterpret_cast<T*>(ptr + barrier_size);
+    }
+
+    void deallocate( T* p, std::size_t n )
+    {
+        std::byte * ptr = reinterpret_cast<std::byte*>(p) - barrier_size;
+        if ( *reinterpret_cast<std::uint64_t*>(ptr) != barrier )
+        {
+            throw std::runtime_error{"Grumpy allocator mismatch"};
+        }
+        if ( *reinterpret_cast<std::uint64_t*>(ptr + n * sizeof(T) + barrier_size) != barrier )
+        {
+            throw std::runtime_error{"Grumpy allocator mismatch"};
+        }
+        std::free( ptr );
+    }
+};
+
+template< class T1, class T2 >
+bool operator==( const GrumpyStatefulAllocator<T1>& lhs, const GrumpyStatefulAllocator<T2>& rhs ) noexcept
+{
+    return lhs.barrier == rhs.barrier;
+}
+
+template< class T1, class T2 >
+bool operator!=( const GrumpyStatefulAllocator<T1>& lhs, const GrumpyStatefulAllocator<T2>& rhs ) noexcept
+{
+    return lhs.barrier != rhs.barrier;
+}
 
 // A trivial object should benefit from supporting memcpy/memmove
 // and no destruction
@@ -100,9 +151,15 @@ struct ThrowingMoveObject
     std::string data = std::string( 1024, 'Z' );
 };
 
-TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject )
+template<typename T>
+using StdVeque = veque<T>;
+
+template<typename T>
+using GrumpyVeque = veque<T,GrumpyStatefulAllocator<T>>;
+
+TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template]", (StdVeque, GrumpyVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject) )
 {
-    veque<TestType> v( 5 );
+    TestType v( 5 );
 
     REQUIRE( v.size() == 5 );
     REQUIRE( v.capacity() >= 5 );
@@ -132,7 +189,7 @@ TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool
 
         SECTION( "We can use the 'swap trick' to reset the capacity" )
         {
-            veque<TestType>( v ).swap( v );
+            TestType( v ).swap( v );
 
             REQUIRE( v.capacity() == 5 );
         }
@@ -188,17 +245,17 @@ TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool
     }
 }
 
-TEMPLATE_TEST_CASE( "large end growth", "[veque][template]", bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ )
+TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque][template]", (StdVeque, GrumpyVeque), (bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ ) )
 {
-    typename veque<TestType>::size_type size = 5;
-    veque<TestType> v( size );
+    typename TestType::size_type size = 5;
+    TestType v( size );
 
     REQUIRE( v.size() == size );
     REQUIRE( v.capacity() >= size );
     
     SECTION( "push_back" )
     {
-        TestType val{};
+        typename TestType::value_type val{};
         for ( int i = 0; i < 2'000; ++i )
         {
             v.push_back( val );
@@ -238,7 +295,7 @@ TEMPLATE_TEST_CASE( "large end growth", "[veque][template]", bool, int /*, std::
     }
     SECTION( "push_front" )
     {
-        TestType val{};
+        typename TestType::value_type val{};
         for ( int i = 0; i < 2'000; ++i )
         {
             v.push_front( val );
@@ -277,10 +334,10 @@ TEMPLATE_TEST_CASE( "large end growth", "[veque][template]", bool, int /*, std::
     }
 }
 
-TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ )
+TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdVeque, GrumpyVeque), (bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ ) )
 {
-    typename veque<TestType>::size_type size = 5;
-    veque<TestType> v( size );
+    typename TestType::size_type size = 5;
+    TestType v( size );
 
     REQUIRE( v.size() == size );
     REQUIRE( v.capacity() >= size );
@@ -289,7 +346,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
     {
         for ( int i = 0; i < 2'000; ++i )
         {
-            TestType val{};
+            typename TestType::value_type val{};
             v.insert( v.begin(), val );
             ++size;
             REQUIRE( v.size() == size );
@@ -309,7 +366,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
     {
         for ( int i = 0; i < 2'000; ++i )
         {
-            TestType val{};
+            typename TestType::value_type val{};
             v.insert( v.end(), val );
             ++size;
             REQUIRE( v.size() == size );
@@ -329,7 +386,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
     {
         for ( int i = 0; i < 2'000; ++i )
         {
-            TestType val{};
+            typename TestType::value_type val{};
             v.insert( v.begin() + v.size() / 2, val );
             ++size;
             REQUIRE( v.size() == size );
@@ -349,7 +406,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
     {
         for ( int i = 0; i < 2'000; ++i )
         {
-            TestType val{};
+            typename TestType::value_type val{};
             v.insert( v.begin() + v.size() / 3, val );
             ++size;
             REQUIRE( v.size() == size );
@@ -369,7 +426,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
     {
         for ( int i = 0; i < 2'000; ++i )
         {
-            TestType val{};
+            typename TestType::value_type val{};
             v.insert( v.begin() + 2 * v.size() / 3, val );
             ++size;
             REQUIRE( v.size() == size );
@@ -393,7 +450,7 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
         srand(time(NULL));
         for ( int i = 0; i < 2'000; ++i )
         {
-            TestType val{};
+            typename TestType::value_type val{};
             //auto index = std::uniform_int_distribution<>(0, v.size())(gen);    
             auto index = rand() % (v.size()+1);
             //v.insert( v.begin() + dis(gen), val );
@@ -414,9 +471,9 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, 
     }
 }
 
-TEMPLATE_TEST_CASE( "veques can be modified at either end with strong exception guarantee", "[veque][template]", bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject )
+TEMPLATE_PRODUCT_TEST_CASE( "veques can be modified at either end with strong exception guarantee", "[veque][template]", (StdVeque, GrumpyVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject ) )
 {
-    veque<TestType> v( 5 );
+    TestType v( 5 );
 
     REQUIRE( v.size() == 5 );
     REQUIRE( v.capacity() >= 5 );
@@ -447,7 +504,7 @@ TEMPLATE_TEST_CASE( "veques can be modified at either end with strong exception 
             auto v_before = v;
             try
             {
-                TestType val;
+                typename TestType::value_type val;
                 v.push_back( val );
                 REQUIRE( ++size == v.size() );
             }
@@ -484,7 +541,7 @@ TEMPLATE_TEST_CASE( "veques can be modified at either end with strong exception 
             auto v_before = v;
             try
             {
-                TestType val;
+                typename TestType::value_type val;
                 v.push_front( val );
                 REQUIRE( ++size == v.size() );
             }
@@ -533,20 +590,6 @@ TEMPLATE_TEST_CASE( "veques can be modified at either end with strong exception 
     }
 }
 
-TEST_CASE( "veques emplace", "[veque]" )
-{
-    veque<std::string> v;
-    
-    v.emplace_back( "ABC" );
-    CHECK( v == veque<std::string>{ std::string("ABC") } );
-
-    v.emplace_front( 5, 'X' );
-    CHECK( v == veque<std::string>{ std::string("XXXXX"), std::string("ABC") } );
-
-    v.emplace_back( std::string_view("12345"), 1, 3 );
-    CHECK( v == veque<std::string>{ std::string("XXXXX"), std::string("ABC"), std::string("234") } );
-}
-
 // Sample data, each in increasing comparison order
 template<typename T, size_t index> const T val;
 template<> const int val<int,0> = 0;
@@ -575,10 +618,10 @@ template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 
-TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, std::string, double, std::vector<int> )
+TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
-    veque<TestType> veq;
-    std::vector<TestType> vec;
+    TestType veq;
+    std::vector<typename TestType::value_type, typename TestType::allocator_type> vec;
 
     srand(time(NULL));
     
@@ -627,28 +670,28 @@ TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, st
         [&]
         {
             INFO( "push_back0" );
-            auto item = val<TestType,0>;
+            auto item = val<typename TestType::value_type,0>;
             veq.push_back( item );
             vec.push_back( item );
         },
         [&]
         {
             INFO( "push_back1" );
-            auto item = val<TestType,1>;
-            veq.push_back( TestType{item} );
-            vec.push_back( TestType{item} );
+            auto item = val<typename TestType::value_type,1>;
+            veq.push_back( typename TestType::value_type{item} );
+            vec.push_back( typename TestType::value_type{item} );
         },
         [&]
         {
             INFO( "emplace_back" );
-            auto item = val<TestType,4>;
-            veq.emplace_back( TestType{item} );
-            vec.emplace_back( TestType{item} );
+            auto item = val<typename TestType::value_type,4>;
+            veq.emplace_back( typename TestType::value_type{item} );
+            vec.emplace_back( typename TestType::value_type{item} );
         },
         [&]
         {
             INFO( "insert2" );
-            auto item = val<TestType,2>;
+            auto item = val<typename TestType::value_type,2>;
             auto index = veq.size() ? rand() % veq.size() : 0;
             veq.insert( veq.begin() + index, item );
             vec.insert( vec.begin() + index, item );
@@ -656,15 +699,15 @@ TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, st
         [&]
         {
             INFO( "insert3" );
-            auto item = val<TestType,3>;
+            auto item = val<typename TestType::value_type,3>;
             auto index = veq.size() ? rand() % veq.size() : 0;
-            veq.insert( veq.begin() + index, TestType{item} );
-            vec.insert( vec.begin() + index, TestType{item});
+            veq.insert( veq.begin() + index, typename TestType::value_type{item} );
+            vec.insert( vec.begin() + index, typename TestType::value_type{item});
         },
         [&]
         {
             INFO( "emplace" );
-            auto item = val<TestType,3>;
+            auto item = val<typename TestType::value_type,3>;
             auto index = veq.size() ? rand() % veq.size() : 0;
             veq.emplace( veq.begin() + index );
             vec.emplace( vec.begin() + index );
@@ -710,10 +753,14 @@ TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, st
             INFO( "swap" );
             if ( vec.size() > 2 )
             {
-                auto veq2 = veque<TestType>( veq.begin() + 1, veq.end() - 1 );
-                auto vec2 = std::vector<TestType>( vec.begin() + 1, vec.end() - 1 );
-                veq.swap( veq2 );
-                vec.swap( vec2 );
+                auto veq2 = TestType( veq.begin() + 1, veq.end() - 1 );
+                auto vec2 = std::vector<typename TestType::value_type, typename TestType::allocator_type>( vec.begin() + 1, vec.end() - 1 );
+                if ( veq.get_allocator() == veq2.get_allocator() && vec.get_allocator() == vec2.get_allocator() )
+                {
+                    // UB, otherwise.
+                    veq.swap( veq2 );
+                    vec.swap( vec2 );
+                }
             }
         }
     };
@@ -725,10 +772,10 @@ TEMPLATE_TEST_CASE( "std::vector interface parity", "[veque][template]", int, st
     }
 }
 
-TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std::string, double, std::vector<int> )
+TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
-    veque<TestType> veq;
-    std::deque<TestType> deq;
+    TestType veq;
+    std::deque<typename TestType::value_type, typename TestType::allocator_type> deq;
 
     srand(time(NULL));
     
@@ -777,49 +824,49 @@ TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std
         [&]
         {
             INFO( "push_back0" );
-            auto item = val<TestType,0>;
+            auto item = val<typename TestType::value_type,0>;
             veq.push_back( item );
             deq.push_back( item );
         },
         [&]
         {
             INFO( "push_back1" );
-            auto item = val<TestType,1>;
-            veq.push_back( TestType{item} );
-            deq.push_back( TestType{item} );
+            auto item = val<typename TestType::value_type,1>;
+            veq.push_back( typename TestType::value_type{item} );
+            deq.push_back( typename TestType::value_type{item} );
         },
         [&]
         {
             INFO( "emplace_back" );
-            auto item = val<TestType,4>;
-            veq.emplace_back( TestType{item} );
-            deq.emplace_back( TestType{item} );
+            auto item = val<typename TestType::value_type,4>;
+            veq.emplace_back( typename TestType::value_type{item} );
+            deq.emplace_back( typename TestType::value_type{item} );
         },
         [&]
         {
             INFO( "push_front5" );
-            auto item = val<TestType,5>;
+            auto item = val<typename TestType::value_type,5>;
             veq.push_front( item );
             deq.push_front( item );
         },
         [&]
         {
             INFO( "push_front4" );
-            auto item = val<TestType,4>;
-            veq.push_front( TestType{item} );
-            deq.push_front( TestType{item} );
+            auto item = val<typename TestType::value_type,4>;
+            veq.push_front( typename TestType::value_type{item} );
+            deq.push_front( typename TestType::value_type{item} );
         },
         [&]
         {
             INFO( "emplace_front" );
-            auto item = val<TestType,4>;
-            veq.emplace_front( TestType{item} );
-            deq.emplace_front( TestType{item} );
+            auto item = val<typename TestType::value_type,4>;
+            veq.emplace_front( typename TestType::value_type{item} );
+            deq.emplace_front( typename TestType::value_type{item} );
         },
         [&]
         {
             INFO( "insert2" );
-            auto item = val<TestType,2>;
+            auto item = val<typename TestType::value_type,2>;
             auto index = veq.size() ? rand() % veq.size() : 0;
             veq.insert( veq.begin() + index, item );
             deq.insert( deq.begin() + index, item );
@@ -827,15 +874,15 @@ TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std
         [&]
         {
             INFO( "insert3" );
-            auto item = val<TestType,3>;
+            auto item = val<typename TestType::value_type,3>;
             auto index = veq.size() ? rand() % veq.size() : 0;
-            veq.insert( veq.begin() + index, TestType{item} );
-            deq.insert( deq.begin() + index, TestType{item});
+            veq.insert( veq.begin() + index, typename TestType::value_type{item} );
+            deq.insert( deq.begin() + index, typename TestType::value_type{item});
         },
         [&]
         {
             INFO( "emplace" );
-            auto item = val<TestType,3>;
+            auto item = val<typename TestType::value_type,3>;
             auto index = veq.size() ? rand() % veq.size() : 0;
             veq.emplace( veq.begin() + index );
             deq.emplace( deq.begin() + index );
@@ -867,10 +914,14 @@ TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std
             INFO( "swap" );
             if ( deq.size() > 2 )
             {
-                auto veq2 = veque<TestType>( veq.begin() + 1, veq.end() - 1 );
-                auto vec2 = std::deque<TestType>( deq.begin() + 1, deq.end() - 1 );
-                veq.swap( veq2 );
-                deq.swap( vec2 );
+                auto veq2 = TestType( veq.begin() + 1, veq.end() - 1 );
+                auto vec2 = std::deque<typename TestType::value_type, typename TestType::allocator_type>( deq.begin() + 1, deq.end() - 1 );
+                if ( veq.get_allocator() == veq2.get_allocator() && deq.get_allocator() == deq.get_allocator() )
+                {
+                    // UB, otherwise.
+                    veq.swap( veq2 );
+                    deq.swap( vec2 );
+                }
             }
         }
     };
@@ -882,63 +933,63 @@ TEMPLATE_TEST_CASE( "std::deque interface parity", "[veque][template]", int, std
     }
 }
 
-TEMPLATE_TEST_CASE( "veque element ordering and access", "[veque][template]", int, std::string, double, std::vector<int> )
+TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
-    veque<TestType> veq1;
+    TestType veq1;
     
     CHECK( veq1.empty() );
     CHECK( veq1.size() == 0 );
 
-    veq1.push_back( val<TestType,1> );
-    veq1.push_back( val<TestType,2> );
-    veq1.emplace_back( val<TestType,3> );
+    veq1.push_back( val<typename TestType::value_type,1> );
+    veq1.push_back( val<typename TestType::value_type,2> );
+    veq1.emplace_back( val<typename TestType::value_type,3> );
 
     CHECK( !veq1.empty() );
     CHECK( veq1.size() == 3 );
-    CHECK( veq1 == veque<TestType>{ val<TestType,1>, val<TestType,2>, val<TestType,3> } );
-    CHECK( veq1.front() == val<TestType,1> );
-    CHECK( veq1.back() == val<TestType,3> );
+    CHECK( veq1 == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
+    CHECK( veq1.front() == val<typename TestType::value_type,1> );
+    CHECK( veq1.back() == val<typename TestType::value_type,3> );
 
-    veq1.push_front( val<TestType,4> );
-    veq1.emplace_front( val<TestType,5> );
+    veq1.push_front( val<typename TestType::value_type,4> );
+    veq1.emplace_front( val<typename TestType::value_type,5> );
 
     CHECK( !veq1.empty() );
     CHECK( veq1.size() == 5 );
-    CHECK( veq1 == veque<TestType>{ val<TestType,5>, val<TestType,4>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
-    CHECK( veq1.front() == val<TestType,5> );
-    CHECK( veq1.back() == val<TestType,3> );
+    CHECK( veq1 == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
+    CHECK( veq1.front() == val<typename TestType::value_type,5> );
+    CHECK( veq1.back() == val<typename TestType::value_type,3> );
     
     veq1.pop_back();
 
     CHECK( !veq1.empty() );
     CHECK( veq1.size() == 4 );
-    CHECK( veq1 == veque<TestType>{ val<TestType,5>, val<TestType,4>, val<TestType,1>, val<TestType,2> } );
-    CHECK( veq1.front() == val<TestType,5> );
-    CHECK( veq1.back() == val<TestType,2> );
-    CHECK( veq1[0] == val<TestType,5> );
-    CHECK( veq1.at(0) == val<TestType,5> );
-    CHECK( veq1[1] == val<TestType,4> );
-    CHECK( veq1.at(1) == val<TestType,4> );
-    CHECK( veq1[2] == val<TestType,1> );
-    CHECK( veq1.at(2) == val<TestType,1> );
-    CHECK( veq1[3] == val<TestType,2> );
-    CHECK( veq1.at(3) == val<TestType,2> );
+    CHECK( veq1 == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> } );
+    CHECK( veq1.front() == val<typename TestType::value_type,5> );
+    CHECK( veq1.back() == val<typename TestType::value_type,2> );
+    CHECK( veq1[0] == val<typename TestType::value_type,5> );
+    CHECK( veq1.at(0) == val<typename TestType::value_type,5> );
+    CHECK( veq1[1] == val<typename TestType::value_type,4> );
+    CHECK( veq1.at(1) == val<typename TestType::value_type,4> );
+    CHECK( veq1[2] == val<typename TestType::value_type,1> );
+    CHECK( veq1.at(2) == val<typename TestType::value_type,1> );
+    CHECK( veq1[3] == val<typename TestType::value_type,2> );
+    CHECK( veq1.at(3) == val<typename TestType::value_type,2> );
     CHECK_THROWS( veq1.at(4) );
     
     veq1.pop_front();
 
     CHECK( !veq1.empty() );
     CHECK( veq1.size() == 3 );
-    CHECK( veq1 == veque<TestType>{ val<TestType,4>, val<TestType,1>, val<TestType,2> } );
-    CHECK( veq1.front() == val<TestType,4> );
-    CHECK( veq1.back() == val<TestType,2> );
+    CHECK( veq1 == TestType{ val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> } );
+    CHECK( veq1.front() == val<typename TestType::value_type,4> );
+    CHECK( veq1.back() == val<typename TestType::value_type,2> );
    
     auto veq2 = veq1;
 
     CHECK( veq1 == veq2 );
     CHECK( !(veq1 != veq2) );
 
-    veq2.emplace_front( val<TestType,0> );
+    veq2.emplace_front( val<typename TestType::value_type,0> );
     
     CHECK( veq2 < veq1 );
     CHECK( veq2 <= veq1 );
@@ -969,16 +1020,15 @@ TEMPLATE_TEST_CASE( "veque element ordering and access", "[veque][template]", in
     CHECK( veq1 == veq2 );
     CHECK( !(veq1 != veq2) );
 
-    veq2 = veque<TestType>{ val<TestType,4>, val<TestType,1>, val<TestType,2> };
+    veq2 = TestType{ val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> };
 
     CHECK( veq1 == veq2 );
     CHECK( !(veq1 != veq2) );
 }
 
-TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, double, std::vector<int> )
+TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
-    // (Template deduction guide)
-    veque veq{ val<TestType,1>, val<TestType,2>, val<TestType,3>  };
+    TestType veq{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>  };
     veq.reserve(20);
     
     CHECK( !veq.empty() );
@@ -986,68 +1036,68 @@ TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, doubl
     
     SECTION( "l-value insertion" )
     {
-        veq.insert( veq.begin(), val<TestType,0> );
+        veq.insert( veq.begin(), val<typename TestType::value_type,0> );
 
         REQUIRE( veq.size() == 4 );
-        CHECK( veq[0] == val<TestType,0> );
-        CHECK( veq[1] == val<TestType,1> );
-        CHECK( veq[2] == val<TestType,2> );
-        CHECK( veq[3] == val<TestType,3> );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq[0] == val<typename TestType::value_type,0> );
+        CHECK( veq[1] == val<typename TestType::value_type,1> );
+        CHECK( veq[2] == val<typename TestType::value_type,2> );
+        CHECK( veq[3] == val<typename TestType::value_type,3> );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
-        veq.insert( veq.end(), val<TestType,0> );
+        veq.insert( veq.end(), val<typename TestType::value_type,0> );
 
         CHECK( veq.size() == 5 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,0> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,0> } );
     }
     SECTION( "l-value resizing insertion" )
     {
         veq.shrink_to_fit();
-        veq.insert( veq.begin(), val<TestType,0> );
+        veq.insert( veq.begin(), val<typename TestType::value_type,0> );
 
         REQUIRE( veq.size() == 4 );
-        CHECK( veq[0] == val<TestType,0> );
-        CHECK( veq[1] == val<TestType,1> );
-        CHECK( veq[2] == val<TestType,2> );
-        CHECK( veq[3] == val<TestType,3> );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq[0] == val<typename TestType::value_type,0> );
+        CHECK( veq[1] == val<typename TestType::value_type,1> );
+        CHECK( veq[2] == val<typename TestType::value_type,2> );
+        CHECK( veq[3] == val<typename TestType::value_type,3> );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
         veq.shrink_to_fit();
-        veq.insert( veq.end(), val<TestType,0> );
+        veq.insert( veq.end(), val<typename TestType::value_type,0> );
 
         REQUIRE( veq.size() == 5 );
-        CHECK( veq[0] == val<TestType,0> );
-        CHECK( veq[1] == val<TestType,1> );
-        CHECK( veq[2] == val<TestType,2> );
-        CHECK( veq[3] == val<TestType,3> );
-        CHECK( veq[4] == val<TestType,0> );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,0> } );
+        CHECK( veq[0] == val<typename TestType::value_type,0> );
+        CHECK( veq[1] == val<typename TestType::value_type,1> );
+        CHECK( veq[2] == val<typename TestType::value_type,2> );
+        CHECK( veq[3] == val<typename TestType::value_type,3> );
+        CHECK( veq[4] == val<typename TestType::value_type,0> );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,0> } );
     }
     SECTION( "r-value insertion" )
     {
-        veq.insert( veq.begin(), TestType(val<TestType,0>) );
+        veq.insert( veq.begin(), typename TestType::value_type(val<typename TestType::value_type,0>) );
 
         CHECK( veq.size() == 4 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
-        veq.insert( veq.end(), TestType(val<TestType,0>) );
+        veq.insert( veq.end(), typename TestType::value_type(val<typename TestType::value_type,0>) );
 
         CHECK( veq.size() == 5 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,0> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,0> } );
     }
     SECTION( "r-value resizing insertion" )
     {
         veq.shrink_to_fit();
-        veq.insert( veq.begin(), TestType(val<TestType,0>) );
+        veq.insert( veq.begin(), typename TestType::value_type(val<typename TestType::value_type,0>) );
 
         CHECK( veq.size() == 4 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
         veq.shrink_to_fit();
-        veq.insert( veq.end(), TestType(val<TestType,0>) );
+        veq.insert( veq.end(), typename TestType::value_type(val<typename TestType::value_type,0>) );
 
         CHECK( veq.size() == 5 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,0> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,0> } );
     }
     SECTION( "pop erasure" )
     {
@@ -1055,45 +1105,45 @@ TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, doubl
         veq.pop_front();
         
         CHECK( veq.size() == 2 );
-        CHECK( veq == veque<TestType>{ val<TestType,2>, val<TestType,3> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
         veq.pop_back();
         CHECK( veq.size() == 1 );
-        CHECK( veq == veque<TestType>{ val<TestType,2> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,2> } );
     }
     SECTION( "val,count insertion" )
     {
-        veq.insert( veq.end(), typename veque<TestType>::size_type(2), val<TestType,4> );
+        veq.insert( veq.end(), typename TestType::size_type(2), val<typename TestType::value_type,4> );
 
         CHECK( veq.size() == 5 );
-        CHECK( veq == veque<TestType>{ val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,4>, val<TestType,4> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,4> } );
 
     }
     SECTION( "val,count resizing insertion" )
     {
         veq.shrink_to_fit();
-        veq.insert( veq.end(), typename veque<TestType>::size_type(2), val<TestType,4> );
+        veq.insert( veq.end(), typename TestType::size_type(2), val<typename TestType::value_type,4> );
 
         CHECK( veq.size() == 5 );
-        CHECK( veq == veque<TestType>{ val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,4>, val<TestType,4> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,4> } );
 
     }
     SECTION( "range insertion" )
     {
-        auto veq2 = veque<TestType>{ val<TestType,5>, val<TestType,4>, val<TestType,3> };
+        auto veq2 = TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3> };
         veq.insert( veq.begin(), veq2.begin(), veq2.end() );
 
         CHECK( veq.size() == 6 );
-        CHECK( veq == veque<TestType>{ val<TestType,5>, val<TestType,4>, val<TestType,3>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
     }
     SECTION( "range resizing  insertion" )
     {
         veq.shrink_to_fit();
-        auto veq2 = veque<TestType>{ val<TestType,5>, val<TestType,4>, val<TestType,3> };
+        auto veq2 = TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3> };
         veq.insert( veq.begin(), veq2.begin(), veq2.end() );
 
         CHECK( veq.size() == 6 );
-        CHECK( veq == veque<TestType>{ val<TestType,5>, val<TestType,4>, val<TestType,3>, val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
     }
     SECTION( "resize_back erasure" )
     {
@@ -1101,7 +1151,7 @@ TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, doubl
         veq.resize_back( 1 );
 
         CHECK( veq.size() == 1 );
-        CHECK( veq == veque<TestType>{ val<TestType,1> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1> } );
     }
     SECTION( "resize_front erasure" )
     {
@@ -1109,110 +1159,110 @@ TEMPLATE_TEST_CASE( "insert/erase", "[veque][template]", int, std::string, doubl
         veq.resize_front( 1 );
 
         CHECK( veq.size() == 1 );
-        CHECK( veq == veque<TestType>{ val<TestType,3> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,3> } );
     }
     SECTION( "resize_front erasure" )
     {
         // initializer list insertion
-        veq.insert( veq.end(), {val<TestType,0>, val<TestType,1>, val<TestType,2>} );
+        veq.insert( veq.end(), {val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>} );
 
         CHECK( veq.size() == 6 );
-        CHECK( veq == veque<TestType>{ val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,0>, val<TestType,1>, val<TestType,2> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> } );
     }
     SECTION( "iterator erasure 1" )
     {
         veq.erase( veq.begin() );
 
         CHECK( veq.size() == 2 );
-        CHECK( veq[0] == val<TestType,2> );
-        CHECK( veq[1] == val<TestType,3> );
-        CHECK( veq == veque<TestType>{ val<TestType,2>, val<TestType,3> } );
+        CHECK( veq[0] == val<typename TestType::value_type,2> );
+        CHECK( veq[1] == val<typename TestType::value_type,3> );
+        CHECK( veq == TestType{ val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
     }
     SECTION( "iterator erasure 2" )
     {
         veq.erase( veq.begin() + 1 );
 
         CHECK( veq.size() == 2 );
-        CHECK( veq[0] == val<TestType,1> );
-        CHECK( veq[1] == val<TestType,3> );
-        CHECK( veq == veque<TestType>{ val<TestType,1>, val<TestType,3> } );
+        CHECK( veq[0] == val<typename TestType::value_type,1> );
+        CHECK( veq[1] == val<typename TestType::value_type,3> );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,3> } );
     }
     SECTION( "iterator erasure 3" )
     {
         veq.erase( veq.end() - 1 );
 
         CHECK( veq.size() == 2 );
-        CHECK( veq[0] == val<TestType,1> );
-        CHECK( veq[1] == val<TestType,2> );
-        CHECK( veq == veque<TestType>{ val<TestType,1>, val<TestType,2> } );
+        CHECK( veq[0] == val<typename TestType::value_type,1> );
+        CHECK( veq[1] == val<typename TestType::value_type,2> );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2> } );
     }
     SECTION( "range erasure begin" )
     {
-        veq.assign( { val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,4>, val<TestType,5>} );
+        veq.assign( { val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,5>} );
         veq.erase( veq.begin(), veq.begin() + 3 );
         CHECK( veq.size() == 3 );
-        CHECK( veq == veque<TestType>{ val<TestType,3>, val<TestType,4>, val<TestType,5> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,5> } );
     }
     SECTION( "range erasure end" )
     {
-        veq.assign( { val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,4>, val<TestType,5>} );
+        veq.assign( { val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,5>} );
         veq.erase( veq.begin() + 3, veq.end() );
         CHECK( veq.size() == 3 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,2> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> } );
     }
     SECTION( "range erasure mid near front" )
     {
-        veq.assign( { val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,4>, val<TestType,5>} );
+        veq.assign( { val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,5>} );
         veq.erase( veq.begin() + 1, veq.begin() + 4 );
         CHECK( veq.size() == 3 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,4>, val<TestType,5> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,4>, val<typename TestType::value_type,5> } );
     }
     SECTION( "range erasure mid near back" )
     {
-        veq.assign( { val<TestType,0>, val<TestType,1>, val<TestType,2>, val<TestType,3>, val<TestType,4>, val<TestType,5>} );
+        veq.assign( { val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,5>} );
         veq.erase( veq.begin() + 2, veq.begin() + 5 );
         CHECK( veq.size() == 3 );
-        CHECK( veq == veque<TestType>{ val<TestType,0>, val<TestType,1>, val<TestType,5> } );
+        CHECK( veq == TestType{ val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,5> } );
     }
     SECTION( "Range assign" )
     {
-        veque<TestType> veq3;
+        TestType veq3;
         veq3.assign( veq.begin(), veq.end() );
         CHECK( veq3.size() == 3 );
-        CHECK( veq3 == veque<TestType>{ val<TestType,1>, val<TestType,2>, val<TestType,3> } );
+        CHECK( veq3 == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
     }
     SECTION( "count,val assign" )
     {
-        veque<TestType> veq4;
-        veq4.assign( typename veque<TestType>::size_type(3), val<TestType,2> );
+        TestType veq4;
+        veq4.assign( typename TestType::size_type(3), val<typename TestType::value_type,2> );
         CHECK( veq4.size() == 3 );
-        CHECK( veq4 == veque<TestType>{ val<TestType,2>, val<TestType,2>, val<TestType,2> } );
+        CHECK( veq4 == TestType{ val<typename TestType::value_type,2>, val<typename TestType::value_type,2>, val<typename TestType::value_type,2> } );
     }
 }
 
-TEMPLATE_TEST_CASE( "hashing", "[veque][template]", int, std::string, double )
+TEMPLATE_PRODUCT_TEST_CASE( "hashing", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double ) )
 {
-    std::unordered_set<veque<TestType>> uset;
+    std::unordered_set<TestType> uset;
     
-    uset.emplace( veque<TestType>{val<TestType,1>} );
-    uset.emplace( veque<TestType>{val<TestType,2>} );
-    uset.emplace( veque<TestType>{val<TestType,3>} );
+    uset.emplace( TestType{val<typename TestType::value_type,1>} );
+    uset.emplace( TestType{val<typename TestType::value_type,2>} );
+    uset.emplace( TestType{val<typename TestType::value_type,3>} );
 
     CHECK( uset.size() == 3 );
-    CHECK( uset.count(veque<TestType>{val<TestType,0>}) == 0 );
-    CHECK( uset.count(veque<TestType>{val<TestType,1>}) == 1 );
-    CHECK( uset.count(veque<TestType>{val<TestType,2>}) == 1 );
-    CHECK( uset.count(veque<TestType>{val<TestType,3>}) == 1 );
-    CHECK( uset.count(veque<TestType>{val<TestType,4>}) == 0 );
-    CHECK( uset.count(veque<TestType>{val<TestType,5>}) == 0 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,0>}) == 0 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,1>}) == 1 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,2>}) == 1 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,3>}) == 1 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,4>}) == 0 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,5>}) == 0 );
 
-    uset.emplace( veque<TestType>{val<TestType,3>} );
+    uset.emplace( TestType{val<typename TestType::value_type,3>} );
 
     CHECK( uset.size() == 3 );
-    CHECK( uset.count(veque<TestType>{val<TestType,0>}) == 0 );
-    CHECK( uset.count(veque<TestType>{val<TestType,1>}) == 1 );
-    CHECK( uset.count(veque<TestType>{val<TestType,2>}) == 1 );
-    CHECK( uset.count(veque<TestType>{val<TestType,3>}) == 1 );
-    CHECK( uset.count(veque<TestType>{val<TestType,4>}) == 0 );
-    CHECK( uset.count(veque<TestType>{val<TestType,5>}) == 0 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,0>}) == 0 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,1>}) == 1 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,2>}) == 1 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,3>}) == 1 );
+    CHECK( uset.count(TestType{val<typename TestType::value_type,4>}) == 0 );
+    CHECK( uset.count({val<typename TestType::value_type,5>}) == 0 );
 }
