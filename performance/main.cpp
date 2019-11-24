@@ -1,9 +1,9 @@
-/* 
- * 
- * Author: Drew Dormann
+/*
  *
  * veque performance test
- * 
+ *
+ * Copyright (C) 2019 Drew Dormann
+ *
  * SAMPLE OUTPUT:
 
 testing std::deque
@@ -37,10 +37,10 @@ testing veque
 #include <vector>
 #include <deque>
 #include <chrono>
-#include <string> 
-#include <iostream> 
-#include <ios> 
-#include <iostream> 
+#include <string>
+#include <iostream>
+#include <ios>
+#include <iostream>
 #include <iomanip>
 #include <string_view>
 
@@ -303,7 +303,7 @@ int arbitrary_insertion_test(int i) {
 
         for (int i = 0; i < 1'000; ++i) {
             typename Container::value_type val{};
-            v.insert(v.begin() + 2 * v.size() / 3, val);
+            v.insert(v.begin() + 2 * v.size() / 3, {});
             ++size;
         }
         while (v.size()) {
@@ -321,7 +321,7 @@ int arbitrary_insertion_test(int i) {
         //std::mt19937 gen(rd());
         for (int i = 0; i < 1'000; ++i) {
             typename Container::value_type val{};
-            //auto index = std::uniform_int_distribution<>(0, v.size())(gen);    
+            //auto index = std::uniform_int_distribution<>(0, v.size())(gen);
             auto index = rand() % (v.size() + 1);
             //v.insert( v.begin() + dis(gen), val );
             v.insert(v.begin() + index, val);
@@ -349,7 +349,7 @@ int iteration_test(int i) {
     {
         v.push_back( sample<typename Container::value_type> );
     }
-    
+
     for (auto && val : v) {
         for (auto c = reinterpret_cast<char*>(&val); c != reinterpret_cast<char*>(&val) + sizeof(val); ++c ) {
             i += *c;
@@ -412,29 +412,33 @@ int run_iteration_test(int i) {
 
 template< template<typename ...Args> typename Container >
 int test(char i) {
+
+    static auto locale = std::locale("");
+    std::cout.imbue(locale);
+
     auto t1 = std::chrono::steady_clock::now();
 
     i += run_resizing_test<Container>((int) i);
     auto t2 = std::chrono::steady_clock::now();
-    std::cout << std::setw(8) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " us resizing_test time\n";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " us resizing_test time\n";
 
     i += run_back_growth_test<Container>((int) i);
     auto t3 = std::chrono::steady_clock::now();
-    std::cout << std::setw(8) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count() << " us back_growth_test time\n";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count() << " us back_growth_test time\n";
 
     i += run_front_growth_test<Container>((int) i);
     auto t4 = std::chrono::steady_clock::now();
-    std::cout << std::setw(8) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count() << " us front_growth_test time\n";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count() << " us front_growth_test time\n";
 
     i += run_arbitrary_insertion_test<Container>((int) i);
     auto t5 = std::chrono::steady_clock::now();
-    std::cout << std::setw(8) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count() << " us arbitrary_insertion_test time\n";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count() << " us arbitrary_insertion_test time\n";
 
     i += run_iteration_test<Container>((int) i);
     auto t6 = std::chrono::steady_clock::now();
-    std::cout << std::setw(8) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count() << " us iteration_test time\n";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count() << " us iteration_test time\n";
 
-    std::cout << std::setw(8) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count() << " us total time\n";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count() << " us total time\n";
     return i;
 }
 
