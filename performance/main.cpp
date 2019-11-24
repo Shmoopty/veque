@@ -6,34 +6,55 @@
  *
  * SAMPLE OUTPUT:
 
-testing std::deque
-     5,340 us resizing_test time
-    10,860 us back_growth_test time
-     8,646 us front_growth_test time
-   306,541 us arbitrary_insertion_test time
-    57,627 us iteration_test time
-   389,016 us total time
 
-testing std::vector
-     1,708 us resizing_test time
-    16,845 us back_growth_test time
- 1,351,052 us front_growth_test time
-   344,892 us arbitrary_insertion_test time
-    46,995 us iteration_test time
- 1,761,494 us total time
+testing std::deque (1 of 3)
 
-testing veque
-       918 us resizing_test time
-    15,424 us back_growth_test time
-    10,304 us front_growth_test time
-   133,940 us arbitrary_insertion_test time
-    37,462 us iteration_test time
-   198,050 us total time
+testing std::vector (1 of 3)
+
+testing veque (1 of 3)
+
+testing std::deque (2 of 3)
+
+testing std::vector (2 of 3)
+
+testing veque (2 of 3 )
+
+testing std::deque (3 of 3)
+
+std::deque results:
+     7,016 us resizing_test time
+    18,055 us back_growth_test time
+    16,196 us front_growth_test time
+   921,443 us arbitrary_insertion_test time
+   148,111 us iteration_test time
+ 1,110,823 us total time
+
+testing std::vector (3 of 3)
+
+std::vector results:
+     3,525 us resizing_test time
+    34,987 us back_growth_test time
+ 3,959,486 us front_growth_test time
+ 1,080,113 us arbitrary_insertion_test time
+   120,441 us iteration_test time
+ 5,198,554 us total time
+
+testing veque (3 of 3)
+
+veque results:
+     2,786 us resizing_test time
+    32,667 us back_growth_test time
+    30,277 us front_growth_test time
+   419,043 us arbitrary_insertion_test time
+   114,309 us iteration_test time
+   599,085 us total time
+
 
 
  */
 
 #include "include/veque.hpp"
+#include <algorithm>
 #include <vector>
 #include <deque>
 #include <chrono>
@@ -42,6 +63,7 @@ testing veque
 #include <ios>
 #include <iostream>
 #include <iomanip>
+#include <numeric>
 #include <string_view>
 
 struct LargeTrivialObject {
@@ -434,46 +456,76 @@ int run_iteration_test(int i) {
 }
 
 template< template<typename ...Args> typename Container >
-int test(char i) {
+int test(char i, const char * results_name = nullptr ) {
 
-    static auto locale = std::locale("");
-    std::cout.imbue(locale);
+    static std::array<std::chrono::steady_clock::duration,5> results;
 
     auto t1 = std::chrono::steady_clock::now();
 
     i += run_resizing_test<Container>((int) i);
     auto t2 = std::chrono::steady_clock::now();
-    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " us resizing_test time\n";
+    results[0] += (t2 - t1);
 
     i += run_back_growth_test<Container>((int) i);
     auto t3 = std::chrono::steady_clock::now();
-    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count() << " us back_growth_test time\n";
+    results[1] += (t3 - t2);
 
     i += run_front_growth_test<Container>((int) i);
     auto t4 = std::chrono::steady_clock::now();
-    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count() << " us front_growth_test time\n";
+    results[2] += (t4 - t3);
 
     i += run_arbitrary_insertion_test<Container>((int) i);
     auto t5 = std::chrono::steady_clock::now();
-    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t5 - t4).count() << " us arbitrary_insertion_test time\n";
+    results[3] += (t5 - t4);
 
     i += run_iteration_test<Container>((int) i);
     auto t6 = std::chrono::steady_clock::now();
-    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count() << " us iteration_test time\n";
+    results[4] += (t6 - t5);
 
-    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(t6 - t1).count() << " us total time\n";
+    
+    if ( results_name )
+    {
+        std::cout.imbue(std::locale(""));
+        std::cout << '\n' << results_name << " results:\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[0]).count() << " us resizing_test time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[1]).count() << " us back_growth_test time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[2]).count() << " us front_growth_test time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary_insertion_test time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[4]).count() << " us iteration_test time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(results.begin(), results.end(), std::chrono::steady_clock::duration{})).count() << " us total time\n";
+        
+    }
     return i;
 }
 
 int main(int argc, char** argv) {
-    std::cout << "\ntesting std::deque\n";
+    
+    std::cout << "\ntesting std::deque (1 of 3)\n";
     argc += test<std::deque>(argv[0][0]);
 
-    std::cout << "\ntesting std::vector\n";
+    std::cout << "\ntesting std::vector (1 of 3)\n";
     argc += test<std::vector>(argv[0][0]);
 
-    std::cout << "\ntesting veque\n";
+    std::cout << "\ntesting veque (1 of 3)\n";
     argc += test<veque>(argv[0][0]);
+
+    std::cout << "\ntesting std::deque (2 of 3)\n";
+    argc += test<std::deque>(argv[0][0]);
+
+    std::cout << "\ntesting std::vector (2 of 3)\n";
+    argc += test<std::vector>(argv[0][0]);
+
+    std::cout << "\ntesting veque (2 of 3 )\n";
+    argc += test<veque>(argv[0][0]);
+
+    std::cout << "\ntesting std::deque (3 of 3)\n";
+    argc += test<std::deque>(argv[0][0], "std::deque");
+
+    std::cout << "\ntesting std::vector (3 of 3)\n";
+    argc += test<std::vector>(argv[0][0], "std::vector");
+
+    std::cout << "\ntesting veque (3 of 3)\n";
+    argc += test<veque>(argv[0][0], "veque");
 
     return argc;
 }
