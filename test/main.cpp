@@ -184,7 +184,7 @@ TEMPLATE_TEST_CASE( "veques can be sized and resized", "[veque][template]", bool
     }
 }
 
-TEMPLATE_TEST_CASE( "large end growth", "[veque][template]", bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject )
+TEMPLATE_TEST_CASE( "large end growth", "[veque][template]", bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ )
 {
     typename veque<TestType>::size_type size = 5;
     veque<TestType> v( size );
@@ -273,7 +273,7 @@ TEMPLATE_TEST_CASE( "large end growth", "[veque][template]", bool, int, std::str
     }
 }
 
-TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool, int, std::string, LargeTrivialObject, NonTrivialObject )
+TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ )
 {
     typename veque<TestType>::size_type size = 5;
     veque<TestType> v( size );
@@ -373,7 +373,33 @@ TEMPLATE_TEST_CASE( "large insertion growth", "[veque][template]", bool, int, st
         }
         while ( v.size() )
         {
-            v.pop_back();
+            v.pop_front();
+            --size;
+            REQUIRE( v.size() == size );
+            REQUIRE( v.capacity() >= size );
+        }
+        REQUIRE( 0 == size );
+        REQUIRE( v.empty() );
+    }
+    SECTION( "insert randomly" )
+    {
+        // Valgrind doesn't like std::random_device.
+        //std::random_device rd;
+        //std::mt19937 gen(rd());
+        for ( int i = 0; i < 2'000; ++i )
+        {
+            TestType val{};
+            //auto index = std::uniform_int_distribution<>(0, v.size())(gen);    
+            auto index = rand() % (v.size()+1);
+            //v.insert( v.begin() + dis(gen), val );
+            v.insert( v.begin() + index, val );
+            ++size;
+            REQUIRE( v.size() == size );
+            REQUIRE( v.capacity() >= size );
+        }
+        while ( v.size() )
+        {
+            v.pop_front();
             --size;
             REQUIRE( v.size() == size );
             REQUIRE( v.capacity() >= size );
