@@ -1,11 +1,11 @@
 # veque
-Very fast C++17 container combining the best features of `std::vector` and `std::deque`
+[Very fast](https://github.com/Shmoopty/veque/blob/master/performance/main.cpp) C++17 container combining the best features of `std::vector` and `std::deque`
 
 > _"In Most Cases, Prefer Using deque (Controversial)"_
 >
 > -Herb Sutter, [GotW #54](http://www.gotw.ca/gotw/054.htm)
 
-**veque** is an efficient container with interface matching both `std::vector` and `std::deque`.  Its organization is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
+**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its organization is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
 
 ### Features
 * Like `std::vector`, **veque** is an ordered container, in cache-friendly, array-compatible contiguous memory.
