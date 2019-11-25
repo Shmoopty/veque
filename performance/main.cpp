@@ -4,51 +4,34 @@
  *
  * Copyright (C) 2019 Drew Dormann
  *
- * SAMPLE OUTPUT:
-
-
-testing std::deque (1 of 3)
-
-testing std::vector (1 of 3)
-
-testing veque (1 of 3)
-
-testing std::deque (2 of 3)
-
-testing std::vector (2 of 3)
-
-testing veque (2 of 3 )
-
-testing std::deque (3 of 3)
+ * SAMPLE OUTPUT (g++-9)
 
 std::deque results:
-     7,016 us resizing_test time
-    18,055 us back_growth_test time
-    16,196 us front_growth_test time
-   921,443 us arbitrary_insertion_test time
-   148,111 us iteration_test time
- 1,110,823 us total time
-
-testing std::vector (3 of 3)
+     8,216 us resizing time
+    20,018 us back growth time
+    18,418 us front growth time
+   870,060 us arbitrary_ nsertion time
+   137,786 us iteration time
+   528,697 us cache thrashing time
+ 1,583,197 us total time
 
 std::vector results:
-     3,525 us resizing_test time
-    34,987 us back_growth_test time
- 3,959,486 us front_growth_test time
- 1,080,113 us arbitrary_insertion_test time
-   120,441 us iteration_test time
- 5,198,554 us total time
-
-testing veque (3 of 3)
+     3,579 us resizing time
+    34,091 us back growth time
+ 6,288,065 us front growth time
+ 1,025,089 us arbitrary_ nsertion time
+   116,620 us iteration time
+   510,204 us cache thrashing time
+ 7,977,650 us total time
 
 veque results:
-     2,786 us resizing_test time
-    32,667 us back_growth_test time
-    30,277 us front_growth_test time
-   419,043 us arbitrary_insertion_test time
-   114,309 us iteration_test time
-   599,085 us total time
-
+     3,142 us resizing time
+    31,221 us back growth time
+    28,404 us front growth time
+   392,247 us arbitrary_ nsertion time
+   107,642 us iteration time
+   291,009 us cache thrashing time
+   853,669 us total time
 
 
  */
@@ -65,6 +48,7 @@ veque results:
 #include <iomanip>
 #include <numeric>
 #include <string_view>
+#include <functional>
 
 struct LargeTrivialObject {
 
@@ -430,6 +414,204 @@ int iteration_test(int i) {
     return i;
 }
 
+// Sample data, each in increasing comparison order
+template<typename T, size_t index> const T val;
+template<> const int val<int,0> = 0;
+template<> const int val<int,1> = 1;
+template<> const int val<int,2> = 2;
+template<> const int val<int,3> = 3;
+template<> const int val<int,4> = 4;
+template<> const int val<int,5> = 5;
+template<> const std::string val<std::string,0> = std::string(100, 'A');
+template<> const std::string val<std::string,1> = std::string(200, 'B');
+template<> const std::string val<std::string,2> = std::string(300, 'C');
+template<> const std::string val<std::string,3> = std::string(400, 'D');
+template<> const std::string val<std::string,4> = std::string(500, 'E');
+template<> const std::string val<std::string,5> = std::string(600, 'F');
+template<> const double val<double,0> = 00.0;
+template<> const double val<double,1> = 11.0;
+template<> const double val<double,2> = 22.0;
+template<> const double val<double,3> = 33.0;
+template<> const double val<double,4> = 44.0;
+template<> const double val<double,5> = 55.0;
+template<> const std::vector<int> val<std::vector<int>,0> = { 0, 1, 2 };
+template<> const std::vector<int> val<std::vector<int>,1> = { 1, 2, 3 };
+template<> const std::vector<int> val<std::vector<int>,2> = { 2, 3, 4 };
+template<> const std::vector<int> val<std::vector<int>,3> = { 3, 4, 5 };
+template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
+template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
+
+template< typename Container >
+int random_operations_test(int i)
+{
+    Container veq;
+
+    srand(time(NULL));
+    
+    auto tests = std::vector<std::function<void()>>{
+        [&]
+        {
+            auto new_size = rand() % 20'000;
+            veq.resize(new_size);
+            i += *reinterpret_cast<char*>(&veq);
+        },
+        [&]
+        {
+            auto new_size = rand() % 10'000;
+            veq.resize(new_size);
+            i += *reinterpret_cast<char*>(&veq);
+        },
+        [&]
+        {
+            auto new_size = rand() % 5'000;
+            veq.resize(new_size);
+            i += *reinterpret_cast<char*>(&veq);
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto index = rand() % veq.size();
+                auto x = veq.at(index);
+                i += *reinterpret_cast<char*>(&i);
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto index = rand() % veq.size();
+                auto x = veq[index];
+                i += *reinterpret_cast<char*>(&i);
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto x = veq.front();
+                i += *reinterpret_cast<char*>(&i);
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto x = veq.back();
+                i += *reinterpret_cast<char*>(&i);
+            }
+        },
+        [&]
+        {
+            veq.push_back( {} );
+        },
+        [&]
+        {
+            auto item = val<typename Container::value_type,1>;
+            veq.push_back( typename Container::value_type{item} );
+            i += *reinterpret_cast<char*>(&item);
+        },
+        [&]
+        {
+            auto item = val<typename Container::value_type,4>;
+            veq.emplace_back( typename Container::value_type{item} );
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto item = val<typename Container::value_type,2>;
+                auto index = rand() % veq.size();
+                veq.insert( veq.begin() + index, item );
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto item = val<typename Container::value_type,3>;
+                auto index = rand() % veq.size();
+                veq.insert( veq.begin() + index, typename Container::value_type{item} );
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto item = val<typename Container::value_type,3>;
+                auto index = rand() % veq.size();
+                veq.emplace( veq.begin() + index );
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto x = *veq.begin();
+                i += *reinterpret_cast<char*>(&x);
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                auto x = *veq.rbegin();
+                i += *reinterpret_cast<char*>(&x);
+            }
+        },
+        [&]
+        {
+            veq.clear();
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                if constexpr( std::is_same_v<Container, veque<typename Container::value_type>> )
+                {
+                    auto x = veq.pop_front_instance();
+                    i += *reinterpret_cast<char*>(&x);
+                }
+                else if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>> )
+                {
+                    auto x = veq.front();
+                    veq.erase( veq.begin() );
+                    i += *reinterpret_cast<char*>(&x);
+                }
+                else
+                {
+                    auto x = veq.front();
+                    veq.pop_front();
+                    i += *reinterpret_cast<char*>(&x);
+                }
+            }
+        },
+        [&]
+        {
+            if ( veq.size() )
+            {
+                if constexpr( std::is_same_v<Container, veque<typename Container::value_type>> )
+                {
+                    auto x = veq.pop_back_instance();
+                    i += *reinterpret_cast<char*>(&x);
+                }
+                else
+                {
+                    auto x = veq.back();
+                    veq.pop_back();
+                    i += *reinterpret_cast<char*>(&x);
+                }
+            }
+        }
+    };
+
+    for ( auto test_counter = 0; test_counter != 30'000; ++test_counter )
+    {
+        tests[ rand() % tests.size() ]();
+    }
+    return i;
+}
+
 template< template<typename ...Args> typename Container >
 int run_resizing_test(int i) {
     i += resizing_test < Container<bool> >(i);
@@ -482,9 +664,20 @@ int run_iteration_test(int i) {
 }
 
 template< template<typename ...Args> typename Container >
+int run_random_operations_test(int i) {
+    i += random_operations_test<Container<int> >(i);
+    i += random_operations_test<Container<std::string> >(i);
+    i += random_operations_test<Container<double> >(i);
+    i += random_operations_test<Container<std::vector<int>> >(i);
+    return i;
+}
+
+
+
+template< template<typename ...Args> typename Container >
 int test(char i, const char * results_name = nullptr ) {
 
-    static std::array<std::chrono::steady_clock::duration,5> results;
+    static std::array<std::chrono::steady_clock::duration,6> results;
 
     auto t1 = std::chrono::steady_clock::now();
 
@@ -508,16 +701,21 @@ int test(char i, const char * results_name = nullptr ) {
     auto t6 = std::chrono::steady_clock::now();
     results[4] += (t6 - t5);
 
+    i += run_random_operations_test<Container>((int) i);
+    auto t7 = std::chrono::steady_clock::now();
+    results[5] += (t7 - t6);
+
     
     if ( results_name )
     {
         std::cout.imbue(std::locale(""));
         std::cout << '\n' << results_name << " results:\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[0]).count() << " us resizing_test time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[1]).count() << " us back_growth_test time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[2]).count() << " us front_growth_test time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary_insertion_test time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[4]).count() << " us iteration_test time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[0]).count() << " us resizing time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[1]).count() << " us back growth time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[2]).count() << " us front growth time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary_ nsertion time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[4]).count() << " us iteration time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[5]).count() << " us cache thrashing time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(results.begin(), results.end(), std::chrono::steady_clock::duration{})).count() << " us total time\n";
         
     }
