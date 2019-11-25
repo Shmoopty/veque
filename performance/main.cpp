@@ -10,7 +10,7 @@ std::deque results:
      8,216 us resizing time
     20,018 us back growth time
     18,418 us front growth time
-   870,060 us arbitrary_ nsertion time
+   870,060 us arbitrary insertion time
    137,786 us iteration time
    528,697 us cache thrashing time
  1,583,197 us total time
@@ -19,7 +19,7 @@ std::vector results:
      3,579 us resizing time
     34,091 us back growth time
  6,288,065 us front growth time
- 1,025,089 us arbitrary_ nsertion time
+ 1,025,089 us arbitrary insertion time
    116,620 us iteration time
    510,204 us cache thrashing time
  7,977,650 us total time
@@ -28,7 +28,7 @@ veque results:
      3,142 us resizing time
     31,221 us back growth time
     28,404 us front growth time
-   392,247 us arbitrary_ nsertion time
+   392,247 us arbitrary insertion time
    107,642 us iteration time
    291,009 us cache thrashing time
    853,669 us total time
@@ -713,7 +713,7 @@ int test(char i, const char * results_name = nullptr ) {
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[0]).count() << " us resizing time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[1]).count() << " us back growth time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[2]).count() << " us front growth time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary_ nsertion time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary insertion time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[4]).count() << " us iteration time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[5]).count() << " us cache thrashing time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(results.begin(), results.end(), std::chrono::steady_clock::duration{})).count() << " us total time\n";
