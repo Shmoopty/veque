@@ -5,9 +5,24 @@ _The double-ended vector_
 
 
     template <typename T, typename Allocator = std::allocator<T> >
-    class veque {
-    public:
-        // Types
+    class veque
+    
+## Iterator invalidation
+
+| Operations | Invalidated |
+|---|---|
+| All read only operations, swap | Never |
+| clear, operator=, assign | Always |
+| insert, emplace, resize | Always |
+| all reserves, shrink_to_fit | If the vector changed capacity, all of them. If not, none |
+| push_back, emplace_back | If the vector changed capacity, all of them. If not, only end() |
+| push_front, emplace_front | If the vector changed capacity, all of them. If not, only begin() |
+| All resizes | If the vector changed capacity, all of them. If not, only begin() or end() |
+| All pop_backs | The element erased and end() |
+| All pop_fronts | The element erased and begin() |
+
+## Member types
+
         using allocator_type = Allocator;
         using value_type = T;
         using reference = T &;
@@ -22,7 +37,8 @@ _The double-ended vector_
         using size_type = std::size_t;
         using ssize_type = std::ptrdiff_t;
 
-        // Common member functions
+## Member functions
+
         veque() noexcept (noexcept(Allocator()));
         explicit veque( const Allocator& ) noexcept;
         explicit veque( size_type n, const Allocator& = Allocator() );
@@ -45,7 +61,7 @@ _The double-ended vector_
         void assign(std::initializer_list<T>);
         allocator_type get_allocator() const;
 
-        // Element access
+### Element access
         reference at(size_type);
         const_reference at(size_type) const;
         reference operator[](size_type) ;
@@ -57,7 +73,7 @@ _The double-ended vector_
         T * data() noexcept;
         const T * data() const noexcept;
         
-        // Iterators
+### Iterators
         iterator begin() noexcept;
         const_iterator begin() const noexcept;
         const_iterator cbegin() const noexcept;
@@ -71,7 +87,7 @@ _The double-ended vector_
         const_reverse_iterator rend() const noexcept;
         const_reverse_iterator crend() const noexcept;
 
-        // Capacity
+### Capacity
         [[nodiscard]] bool empty() const noexcept;
         size_type size() const noexcept;
         ssize_type ssize() const noexcept;
@@ -89,7 +105,7 @@ _The double-ended vector_
         size_type capacity() const noexcept;
         void shrink_to_fit();
 
-        // Modifiers
+### Modifiers
         void clear() noexcept;
         iterator insert(const_iterator, const T &);
         iterator insert(const_iterator, T &&);
@@ -124,3 +140,25 @@ _The double-ended vector_
             noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value
             || std::allocator_traits<Allocator>::is_always_equal::value));
 
+## Non-member functions
+
+    bool operator==(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator!=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator<(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator<=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator>(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator>=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+
+    void swap(veque<T,Alloc> & lhs, veque<T,Alloc> & rhs) noexcept(
+        noexcept(std::allocator_traits<Alloc>::propagate_on_container_swap::value
+        || std::allocator_traits<Alloc>::is_always_equal::value))
+
+## Non-member types
+
+    struct std::hash<veque<T,Alloc>>
+
+## Deduction Guides
+
+    template< class InputIt, class Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>>
+    veque(InputIt, InputIt, Alloc = Alloc())
+      -> veque<typename std::iterator_traits<InputIt>::value_type, Alloc>;
