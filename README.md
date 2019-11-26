@@ -26,14 +26,14 @@ _`std::deque` interface:_
 * `emplace_front()`
 * `pop_front()`
 
-End-specific resizing:
+_End-specific resizing:_
 * `resize_front()`
 * `resize_back()` (Same as `resize()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_front()`
 * `capacity_back()` (Same as `capacity()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_full()`
 
-Strong exception guarantee pop-and-throw, courtesy C++17:
+_Strong exception guarantee pop-and-throw, courtesy C++17:_
 * `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 * `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 
