@@ -33,7 +33,7 @@ _End-specific resizing:_
 * `capacity_back()` (Same as `capacity()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_full()`
 
-_Strong exception guarantee pop-and-throw, courtesy C++17:_
+_Strong exception guarantee pop-and-return, courtesy C++17:_
 * `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 * `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 
