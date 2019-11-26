@@ -217,7 +217,7 @@
         // Returns iterator to beginning of destructed gap
         iterator priv_shift_back( const_iterator begin, const_iterator end, size_type count );
 
-        decltype(auto) nothrow_move( T & t );
+        decltype(auto) priv_nothrow_move( T & t );
         // Move-constructs if noexcept, copies otherwise
         void priv_nothrow_move_construct( iterator dest, iterator src );
         // Move-assigns if noexcept, copies otherwise
@@ -297,7 +297,7 @@
     }
     
     template <typename T, typename Alloc>
-    decltype(auto) veque<T,Alloc>::nothrow_move( T & t )
+    decltype(auto) veque<T,Alloc>::priv_nothrow_move( T & t )
     {
         if constexpr ( std::is_nothrow_move_constructible_v<T> )
         {
@@ -312,13 +312,13 @@
     template <typename T, typename Alloc>
     void veque<T,Alloc>::priv_nothrow_move_construct( veque<T,Alloc>::iterator dest, veque<T,Alloc>::iterator src )
     {
-        std::allocator_traits<Alloc>::construct( priv_allocator(), dest, nothrow_move(*src) );
+        std::allocator_traits<Alloc>::construct( priv_allocator(), dest, priv_nothrow_move(*src) );
     }
 
     template <typename T, typename Alloc>
     void veque<T,Alloc>::priv_nothrow_move_assign( veque<T,Alloc>::iterator dest, veque<T,Alloc>::iterator src )
     {
-        *dest = nothrow_move(*src);
+        *dest = priv_nothrow_move(*src);
     }
     
     template <typename T, typename Alloc>
@@ -1069,7 +1069,7 @@
     template <typename T, typename Alloc>
     T veque<T,Alloc>::pop_back_instance()
     {
-        auto res( std::move(back()) );
+        auto res( priv_nothrow_move(back()) );
         std::allocator_traits<Alloc>::destroy( priv_allocator(), &back() );
         --_size;
         return res;
@@ -1124,7 +1124,7 @@
     template <typename T, typename Alloc>
     T veque<T,Alloc>::pop_front_instance()
     {
-        auto res( std::move(front()) );
+        auto res( priv_nothrow_move(front()) );
         std::allocator_traits<Alloc>::destroy( priv_allocator(), &front() );
         --_size;
         ++_offset;
