@@ -3,6 +3,7 @@ _The double-ended vector_
 
 ------
 
+To jump to the API details that are unique to `veque`, look at the [Capacity](#capacity) and [Modifiers](#modifiers) sections.
 
     template <typename T, typename Allocator = std::allocator<T> >
     class veque
