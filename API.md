@@ -13,7 +13,7 @@ _The double-ended vector_
 |---|---|
 | All read only operations, swap | Never |
 | clear, operator=, assign | Always |
-| insert, emplace | **Always**.   |
+| insert, emplace | **Always**.  Consider using the returned iterator |
 | all reserves, shrink_to_fit | If the vector changed capacity, all of them. If not, none |
 | push_back, emplace_back, resize, resize_back | If the vector changed capacity, all of them. If not, only end() |
 | push_front, emplace_front, resize_front | If the vector changed capacity, all of them. If not, only begin() |
@@ -73,6 +73,9 @@ All `assign` functions match the behavior, complexity, and exception rules of [C
         allocator_type get_allocator() const;
 
 ### Element access
+
+All element access functions match the behavior, complexity, and exception rules of [C++17 `std::vector::assign`](https://en.cppreference.com/w/cpp/container/vector#Element_access)
+
         reference at(size_type);
         const_reference at(size_type) const;
         reference operator[](size_type) ;
@@ -85,6 +88,9 @@ All `assign` functions match the behavior, complexity, and exception rules of [C
         const T * data() const noexcept;
         
 ### Iterators
+
+All iterator functions match the behavior, complexity, and exception rules of [C++17 `std::vector` iterator functions](https://en.cppreference.com/w/cpp/container/vector#Iterators)
+
         iterator begin() noexcept;
         const_iterator begin() const noexcept;
         const_iterator cbegin() const noexcept;
@@ -99,6 +105,7 @@ All `assign` functions match the behavior, complexity, and exception rules of [C
         const_reverse_iterator crend() const noexcept;
 
 ### Capacity
+
         [[nodiscard]] bool empty() const noexcept;
         size_type size() const noexcept;
         ssize_type ssize() const noexcept;
@@ -117,6 +124,7 @@ All `assign` functions match the behavior, complexity, and exception rules of [C
         void shrink_to_fit();
 
 ### Modifiers
+
         void clear() noexcept;
         iterator insert(const_iterator, const T &);
         iterator insert(const_iterator, T &&);
