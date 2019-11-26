@@ -42,15 +42,24 @@ _The double-ended vector_
 All constructors match the behavior, complexity, and exception rules of [C++17 `std::vector` constructors](https://en.cppreference.com/w/cpp/container/vector/vector)
 
         veque() noexcept (noexcept(Allocator()));
+        
         explicit veque( const Allocator& ) noexcept;
+        
         explicit veque( size_type n, const Allocator& = Allocator() );
+        
         veque( size_type n, const T &val, const Allocator& = Allocator() );
+        
         template <typename InputIt>
         veque( InputIt first,  InputIt last, const Allocator& = Allocator() );
+        
         veque( std::initializer_list<T>, const Allocator& = Allocator() );
+        
         veque( const veque & );
+        
         veque( const veque &, const Allocator& );
+        
         veque( veque && ) noexcept;
+        
         veque( veque &&, const Allocator& ) noexcept;
         
 Destructs the container. The destructors of the elements are called and the used storage is deallocated.
@@ -60,16 +69,21 @@ Destructs the container. The destructors of the elements are called and the used
 All assignment operators match the behavior, complexity, and exception rules of [C++17 `std::vector` assignment operators](https://en.cppreference.com/w/cpp/container/vector/operator%3D)
 
         veque & operator=(const veque &);
+        
         veque & operator=(veque &&) noexcept(
             noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value
             || std::allocator_traits<Allocator>::is_always_equal::value) );
+            
         veque & operator=(std::initializer_list<T>);
         
 All `assign` functions match the behavior, complexity, and exception rules of [C++17 `std::vector::assign`](https://en.cppreference.com/w/cpp/container/vector/assign)
 
         void assign(size_type, const T &value);
+        
         void assign(iterator, iterator);
+        
         void assign(std::initializer_list<T>);
+        
         allocator_type get_allocator() const;
 
 ### Element access
@@ -92,19 +106,44 @@ All element access functions match the behavior, complexity, and exception rules
 All iterator functions match the behavior, complexity, and exception rules of [C++17 `std::vector` iterator functions](https://en.cppreference.com/w/cpp/container/vector#Iterators)
 
         iterator begin() noexcept;
+        
         const_iterator begin() const noexcept;
+        
         const_iterator cbegin() const noexcept;
+        
         iterator end() noexcept;
+        
         const_iterator end() const noexcept;
+        
         const_iterator cend() const noexcept;
+        
         reverse_iterator rbegin() noexcept;
+        
         const_reverse_iterator rbegin() const noexcept;
+        
         const_reverse_iterator crbegin() const noexcept;
+        
         reverse_iterator rend() noexcept;
+        
         const_reverse_iterator rend() const noexcept;
+        
         const_reverse_iterator crend() const noexcept;
 
 ### Capacity
+
+Returns current size + unused allocated storage before front().  Can be used to determine if adding elements at begin() will trigger a reallocation.
+
+        size_type capacity_front() const noexcept;
+
+Returns current size + unused allocated storage before front().  Can be used to determine if adding elements at end() will trigger a reallocation.  This function behaves identically to `capacity()`.
+
+        size_type capacity_back() const noexcept;
+
+Returns all allocated storage, used and unused.
+
+        size_type capacity_full() const noexcept;
+
+All other capacity functions match the behavior, complexity, and exception rules of C++17 `std::vector`
 
         [[nodiscard]] bool empty() const noexcept;
         size_type size() const noexcept;
@@ -113,48 +152,83 @@ All iterator functions match the behavior, complexity, and exception rules of [C
         void reserve(size_type);
         void reserve_front(size_type);
         void reserve_back(size_type);
-        // Returns current storage + unused allocated storage before front()
-        size_type capacity_front() const noexcept;
-        // Returns current storage + unused allocated storage after back()
-        size_type capacity_back() const noexcept;
-        // Returns current storage + all unused allocated storage
-        size_type capacity_full() const noexcept;
-        // To achieve interface parity with std::vector, capacity() returns capacity_back();
         size_type capacity() const noexcept;
         void shrink_to_fit();
 
 ### Modifiers
 
-        void clear() noexcept;
-        iterator insert(const_iterator, const T &);
-        iterator insert(const_iterator, T &&);
-        iterator insert(const_iterator, size_type, const T&);
-        template <class InputIt> iterator insert(const_iterator, InputIt, InputIt);
-        iterator insert(const_iterator, std::initializer_list<T>);
-        template <class ... Args> iterator emplace(const_iterator, Args && ...);
-        iterator erase(const_iterator);
-        iterator erase(const_iterator, const_iterator);
-        void push_back(const T &);
-        void push_back(T &&);
-        template <class ... Args> reference emplace_back(Args && ... args);
-        void push_front(const T &);
-        void push_front(T &&);
-        template <class ... Args> reference emplace_front(Args && ... args);
-        void pop_back();
-        // Move-savvy pop back with strong exception guarantee
+Pops and returns back element.  Strong exception safety guaranteed.  Moves element when appropriate.
+
         T pop_back_instance();
-        void pop_front();
-        // Move-savvy pop front with strong exception guarantee
+
+Pops and returns front element.  Strong exception safety guaranteed.  Moves element when appropriate.
+
         T pop_front_instance();
-        // Resizes the veque, by adding or removing from the front. 
+        
+Resizes the veque, by adding or removing from the front. 
+
         void resize_front(size_type);
+
         void resize_front(size_type, const T &);
-        // Resizes the veque, by adding or removing from the back.
+
+Resizes the veque, by adding or removing from the back.  This function behaves identically to `resize()`.
+
         void resize_back(size_type);
+        
+Adds a new element to the front of the veque.
+
+        void push_front(const T &);
+        
+        void push_front(T &&);
+        
+        template <class ... Args> reference
+        emplace_front(Args && ... args);
+
+Removes element at front of the veque.
+
+        void pop_front();
+
+All `insert` and `emplace` functions perform the same tasks as their `std::vector` counterparts.  **However**,
+* The `veque` may be resized from either end.
+* This makes these operations often perform much faster
+* All iterators are invalidated, though.  Consider utilizing the returned iterator.
+        
+        iterator insert(const_iterator, const T &);
+        
+        iterator insert(const_iterator, T &&);
+        
+        iterator insert(const_iterator, size_type, const T&);
+        
+        template <class InputIt>
+        iterator insert(const_iterator, InputIt, InputIt);
+        
+        iterator insert(const_iterator, std::initializer_list<T>);
+        
+        template <class ... Args> iterator emplace(const_iterator, Args && ...);
+
+All other modifier functions match the behavior, complexity, and exception rules of C++17 `std::vector`
+        
+        void clear() noexcept;
+                
+        iterator erase(const_iterator);
+        
+        iterator erase(const_iterator, const_iterator);
+        
+        void push_back(const T &);
+        
+        void push_back(T &&);
+        
+        template <class ... Args>
+        reference emplace_back(Args && ... args);
+        
+        void pop_back();
+        
         void resize_back(size_type, const T &);
-        // To achieve interface parity with std::vector, resize() performs resize_back();
+
         void resize(size_type);
+        
         void resize(size_type, const T &);
+        
         void swap(veque &) noexcept(
             noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value
             || std::allocator_traits<Allocator>::is_always_equal::value));
