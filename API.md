@@ -1,47 +1,126 @@
-# veque
+# veque API
 _The double-ended vector_
 
 ------
 
-[Very fast](https://github.com/Shmoopty/veque/blob/master/performance/main.cpp) C++17 container combining the best features of `std::vector` and `std::deque`
 
-> _"In Most Cases, Prefer Using deque (Controversial)"_
->
-> -Herb Sutter, [GotW #54](http://www.gotw.ca/gotw/054.htm)
+    template <typename T, typename Allocator = std::allocator<T> >
+    class veque {
+    public:
+        // Types
+        using allocator_type = Allocator;
+        using value_type = T;
+        using reference = T &;
+        using const_reference = const T &;
+        using pointer = T *;
+        using const_pointer = const T *;
+        using iterator = T *;
+        using const_iterator = const T *;
+        using reverse_iterator = std::reverse_iterator<iterator>;
+        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+        using difference_type = std::ptrdiff_t;
+        using size_type = std::size_t;
+        using ssize_type = std::ptrdiff_t;
 
-**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
+        // Common member functions
+        veque() noexcept (noexcept(Allocator()));
+        explicit veque( const Allocator& ) noexcept;
+        explicit veque( size_type n, const Allocator& = Allocator() );
+        veque( size_type n, const T &val, const Allocator& = Allocator() );
+        template <typename InputIt>
+        veque( InputIt first,  InputIt last, const Allocator& = Allocator() );
+        veque( std::initializer_list<T>, const Allocator& = Allocator() );
+        veque( const veque & );
+        veque( const veque &, const Allocator& );
+        veque( veque && ) noexcept;
+        veque( veque &&, const Allocator& ) noexcept;
+        ~veque();
+        veque & operator=(const veque &);
+        veque & operator=(veque &&) noexcept(
+            noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value
+            || std::allocator_traits<Allocator>::is_always_equal::value) );
+        veque & operator=(std::initializer_list<T>);
+        void assign(size_type, const T &value);
+        void assign(iterator, iterator);
+        void assign(std::initializer_list<T>);
+        allocator_type get_allocator() const;
 
-### Features
-* Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.
-* Like `std::deque`, **veque** allows fast insertion/deletion from the front of the container
-* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
+        // Element access
+        reference at(size_type);
+        const_reference at(size_type) const;
+        reference operator[](size_type) ;
+        const_reference operator[](size_type) const;
+        reference front();
+        const_reference front() const;
+        reference back();
+        const_reference back() const;
+        T * data() noexcept;
+        const T * data() const noexcept;
+        
+        // Iterators
+        iterator begin() noexcept;
+        const_iterator begin() const noexcept;
+        const_iterator cbegin() const noexcept;
+        iterator end() noexcept;
+        const_iterator end() const noexcept;
+        const_iterator cend() const noexcept;
+        reverse_iterator rbegin() noexcept;
+        const_reverse_iterator rbegin() const noexcept;
+        const_reverse_iterator crbegin() const noexcept;
+        reverse_iterator rend() noexcept;
+        const_reverse_iterator rend() const noexcept;
+        const_reverse_iterator crend() const noexcept;
 
-### Usage
-The interface for **veque** maintains the entire interface for both `std::vector`, allowing **veque** to be considered as a drop-in replacement.  (See [tradeoffs](#tradeoffs))
+        // Capacity
+        [[nodiscard]] bool empty() const noexcept;
+        size_type size() const noexcept;
+        ssize_type ssize() const noexcept;
+        size_type max_size() const noexcept;
+        void reserve(size_type);
+        void reserve_front(size_type);
+        void reserve_back(size_type);
+        // Returns current storage + unused allocated storage before front()
+        size_type capacity_front() const noexcept;
+        // Returns current storage + unused allocated storage after back()
+        size_type capacity_back() const noexcept;
+        // Returns current storage + all unused allocated storage
+        size_type capacity_full() const noexcept;
+        // To achieve interface parity with std::vector, capacity() returns capacity_back();
+        size_type capacity() const noexcept;
+        void shrink_to_fit();
 
-#### In addition, **veque** provides the following additional functions:
+        // Modifiers
+        void clear() noexcept;
+        iterator insert(const_iterator, const T &);
+        iterator insert(const_iterator, T &&);
+        iterator insert(const_iterator, size_type, const T&);
+        template <class InputIt> iterator insert(const_iterator, InputIt, InputIt);
+        iterator insert(const_iterator, std::initializer_list<T>);
+        template <class ... Args> iterator emplace(const_iterator, Args && ...);
+        iterator erase(const_iterator);
+        iterator erase(const_iterator, const_iterator);
+        void push_back(const T &);
+        void push_back(T &&);
+        template <class ... Args> reference emplace_back(Args && ... args);
+        void push_front(const T &);
+        void push_front(T &&);
+        template <class ... Args> reference emplace_front(Args && ... args);
+        void pop_back();
+        // Move-savvy pop back with strong exception guarantee
+        T pop_back_instance();
+        void pop_front();
+        // Move-savvy pop front with strong exception guarantee
+        T pop_front_instance();
+        // Resizes the veque, by adding or removing from the front. 
+        void resize_front(size_type);
+        void resize_front(size_type, const T &);
+        // Resizes the veque, by adding or removing from the back.
+        void resize_back(size_type);
+        void resize_back(size_type, const T &);
+        // To achieve interface parity with std::vector, resize() performs resize_back();
+        void resize(size_type);
+        void resize(size_type, const T &);
+        void swap(veque &) noexcept(
+            noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value
+            || std::allocator_traits<Allocator>::is_always_equal::value));
 
-_`std::deque` interface:_
-* `push_front()`
-* `emplace_front()`
-* `pop_front()`
-
-_End-specific resizing:_
-* `resize_front()`
-* `resize_back()` (Same as `resize()`, to match `std::vector` and `std::deque` behavior)
-* `capacity_front()`
-* `capacity_back()` (Same as `capacity()`, to match `std::vector` and `std::deque` behavior)
-* `capacity_full()`
-
-_Strong exception guarantee pop-and-throw, courtesy C++17:_
-* `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
-* `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
-
-### Tradeoffs
-Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
-* **veque** is a bit more eager to preallocate memory than a typical `std::vector` implementation, to anticipate resizing from either end.
-* `insert()` and `erase()` function calls should be assumed to invalidate all iterators and references, since the resizing could happen from either direction.  By comparison, the same `std::vector` and `std::deque` operations will sometimes only invalidate *some* of the iterators and references.
-* `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
-
-### To do:
-* Perhaps C++14 support?
