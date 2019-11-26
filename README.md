@@ -3,7 +3,7 @@ _The double-ended vector_
 
 ------
 
-[Very fast](https://github.com/Shmoopty/veque/blob/master/performance/main.cpp) C++17 container combining the best features of `std::vector` and `std::deque`
+A [very fast](https://github.com/Shmoopty/veque/blob/master/performance/main.cpp) C++17 container combining the best features of `std::vector` and `std::deque`
 
 > _"In Most Cases, Prefer Using deque (Controversial)"_
 >
