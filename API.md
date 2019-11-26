@@ -22,20 +22,20 @@ _The double-ended vector_
 | All pop_fronts | The element erased and begin() |
 
 ## Member types
-
-        using allocator_type = Allocator;
-        using value_type = T;
-        using reference = T &;
-        using const_reference = const T &;
-        using pointer = T *;
-        using const_pointer = const T *;
-        using iterator = T *;
-        using const_iterator = const T *;
-        using reverse_iterator = std::reverse_iterator<iterator>;
+  
+        using allocator_type         = Allocator;
+        using value_type             = T;
+        using reference              = T &;
+        using const_reference        = const T &;
+        using pointer                = T *;
+        using const_pointer          = const T *;
+        using iterator               =  T *;
+        using const_iterator         = const T *;
+        using reverse_iterator       = std::reverse_iterator<iterar>;
         using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-        using difference_type = std::ptrdiff_t;
-        using size_type = std::size_t;
-        using ssize_type = std::ptrdiff_t;
+        using difference_type        = std::ptrdiff_t;
+        using size_type              = std::size_t;
+        using ssize_type             = std::ptrdiff_t;
 
 ## Member functions
 
