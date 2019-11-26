@@ -13,10 +13,10 @@ _The double-ended vector_
 |---|---|
 | All read only operations, swap | Never |
 | clear, operator=, assign | Always |
-| insert, emplace, resize | Always |
+| insert, emplace | **Always**.   |
 | all reserves, shrink_to_fit | If the vector changed capacity, all of them. If not, none |
-| push_back, emplace_back | If the vector changed capacity, all of them. If not, only end() |
-| push_front, emplace_front | If the vector changed capacity, all of them. If not, only begin() |
+| push_back, emplace_back, resize, resize_back | If the vector changed capacity, all of them. If not, only end() |
+| push_front, emplace_front, resize_front | If the vector changed capacity, all of them. If not, only begin() |
 | All resizes | If the vector changed capacity, all of them. If not, only begin() or end() |
 | All pop_backs | The element erased and end() |
 | All pop_fronts | The element erased and begin() |
@@ -39,6 +39,8 @@ _The double-ended vector_
 
 ## Member functions
 
+All constructors match the behavior, complexity, and exception rules of [C++17 `std::vector` constructors](https://en.cppreference.com/w/cpp/container/vector/vector)
+
         veque() noexcept (noexcept(Allocator()));
         explicit veque( const Allocator& ) noexcept;
         explicit veque( size_type n, const Allocator& = Allocator() );
@@ -50,12 +52,21 @@ _The double-ended vector_
         veque( const veque &, const Allocator& );
         veque( veque && ) noexcept;
         veque( veque &&, const Allocator& ) noexcept;
+        
+Destructs the container. The destructors of the elements are called and the used storage is deallocated.
+
         ~veque();
+        
+All assignment operators match the behavior, complexity, and exception rules of [C++17 `std::vector` assignment operators](https://en.cppreference.com/w/cpp/container/vector/operator%3D)
+
         veque & operator=(const veque &);
         veque & operator=(veque &&) noexcept(
             noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value
             || std::allocator_traits<Allocator>::is_always_equal::value) );
         veque & operator=(std::initializer_list<T>);
+        
+All `assign` functions match the behavior, complexity, and exception rules of [C++17 `std::vector::assign`](https://en.cppreference.com/w/cpp/container/vector/assign)
+
         void assign(size_type, const T &value);
         void assign(iterator, iterator);
         void assign(std::initializer_list<T>);
