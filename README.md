@@ -1,4 +1,8 @@
 # veque
+_The double-ended vector_
+
+------
+
 [Very fast](https://github.com/Shmoopty/veque/blob/master/performance/main.cpp) C++17 container combining the best features of `std::vector` and `std::deque`
 
 > _"In Most Cases, Prefer Using deque (Controversial)"_
@@ -13,7 +17,9 @@
 * Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
-The interface for **veque** includes the entire interface for `std::vector`, including C++17 and C++20 interface and noexcept specifications.  allowing **veque** to be used as a drop-in replacement.
+The interface for **veque** maintains the entire interface for `std::vector`, allowing **veque** to be considered as a drop-in replacement.  
+
+The interface for **veque** maintains the entire interface for both `std::vector` and `std::deque`, allowing **veque** to be considered as a drop-in replacement.  
 
 In addition, **veque** provides the following additional functions:
 * `push_front()`
