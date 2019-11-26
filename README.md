@@ -17,6 +17,8 @@ _The double-ended vector_
 * Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
+The complete API documentation may be viewed [here](API.md).
+
 The interface for **veque** maintains the entire interface for `std::vector`, allowing **veque** to be considered as a drop-in replacement.  (See [tradeoffs](#tradeoffs))
 
 #### In addition, **veque** provides the following additional functions:
