@@ -9,27 +9,31 @@ _The double-ended vector_
 >
 > -Herb Sutter, [GotW #54](http://www.gotw.ca/gotw/054.htm)
 
-**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its organization is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
+**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
 
 ### Features
-* Like `std::vector`, **veque** is an ordered container, in cache-friendly, array-compatible contiguous memory.
+* Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.
 * Like `std::deque`, **veque** allows fast insertion/deletion from the front of the container
 * Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be faster, because there are often two choices for _what data to shift_.
 
 ### Usage
-The interface for **veque** maintains the entire interface for `std::vector`, allowing **veque** to be considered as a drop-in replacement.  
+The interface for **veque** maintains the entire interface for both `std::vector`, allowing **veque** to be considered as a drop-in replacement.  (See [tradeoffs](#tradeoffs))
 
-The interface for **veque** maintains the entire interface for both `std::vector` and `std::deque`, allowing **veque** to be considered as a drop-in replacement.  
+#### In addition, **veque** provides the following additional functions:
 
-In addition, **veque** provides the following additional functions:
+_`std::deque` interface:_
 * `push_front()`
 * `emplace_front()`
 * `pop_front()`
+
+End-specific resizing
 * `resize_front()`
 * `resize_back()` (Same as `resize()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_front()`
 * `capacity_back()` (Same as `capacity()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_full()`
+
+Strong exception guarantee pop-and-throw, courtesy C++17
 * `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 * `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 
