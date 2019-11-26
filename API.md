@@ -3,7 +3,9 @@ _The double-ended vector_
 
 ------
 
-To jump to the API details that are unique to `veque`, look at the [Capacity](#capacity) and [Modifiers](#modifiers) sections.
+This is intended to be a thorough description of the entire `veque` interface.
+
+To jump to the API details that are unique to `veque`, go to the [Capacity](#capacity) and [Modifiers](#modifiers) sections.
 
     template <typename T, typename Allocator = std::allocator<T> >
     class veque
@@ -254,10 +256,15 @@ All other modifier functions match the behavior, complexity, and exception rules
 ## Non-member functions
 
     bool operator==( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
+    
     bool operator!=( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
+    
     bool operator< ( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
+    
     bool operator<=( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
+    
     bool operator> ( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
+    
     bool operator>=( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
 
     void swap( veque<T,Alloc> & lhs, veque<T,Alloc> & rhs ) noexcept(
