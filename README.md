@@ -9,7 +9,7 @@ _The double-ended vector_
 >
 > -Herb Sutter, [GotW #54](http://www.gotw.ca/gotw/054.htm)
 
-**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to a `std::vector`.  However, while a `std::vector` places all of its unused allocated storage after `end()`, **veque** maintains unused space both _before_ and _after_ the used storage. 
+**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to a `std::vector`.  However, unused storage is maintained both _before_ and _after_ the used storage. 
 
 ### Features
 * Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.
