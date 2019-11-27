@@ -9,7 +9,7 @@ A [very fast](https://github.com/Shmoopty/veque/blob/master/performance/main.cpp
 >
 > -Herb Sutter, [GotW #54](http://www.gotw.ca/gotw/054.htm)
 
-**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to a `std::vector`.  However, unused storage is maintained both _before_ and _after_ the used storage. 
+**veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to `std::vector`, but with unused storage maintained both _before_ and _after_ the used storage. 
 
 ### Features
 * Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.
