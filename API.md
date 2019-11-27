@@ -32,7 +32,7 @@ To jump to the API details that are unique to `veque`, go to the [Capacity](#cap
         using const_reference        = const T &
         using pointer                = T *
         using const_pointer          = const T *
-        using iterator               =  T *
+        using iterator               = T *
         using const_iterator         = const T *
         using reverse_iterator       = std::reverse_iterator<iterator>
         using const_reverse_iterator = std::reverse_iterator<const_iterator>
@@ -147,7 +147,7 @@ Returns current size + unused allocated storage before front().  Can be used to 
 
         size_type capacity_front() const noexcept
 
-Returns current size + unused allocated storage before front().  Can be used to determine if adding elements at end() will trigger a reallocation.  This function behaves identically to `capacity()`.
+Returns current size + unused allocated storage after back().  Can be used to determine if adding elements at end() will trigger a reallocation.  This function behaves identically to `capacity()`.
 
         size_type capacity_back() const noexcept
 
@@ -165,11 +165,11 @@ All other capacity functions match the behavior, complexity, and exception rules
         
         size_type max_size() const noexcept
         
-        void reserve(size_type)
+        void reserve( size_type )
         
-        void reserve_front(size_type)
+        void reserve_front( size_type )
         
-        void reserve_back(size_type)
+        void reserve_back( size_type )
         
         size_type capacity() const noexcept
         
@@ -249,7 +249,7 @@ All other modifier functions match the behavior, complexity, and exception rules
         
         void resize( size_type, const T & )
         
-        void swap(veque &) noexcept(
+        void swap( veque & ) noexcept(
             noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value
             || std::allocator_traits<Allocator>::is_always_equal::value))
 
