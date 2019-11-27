@@ -195,6 +195,8 @@ Resizes the veque, by adding or removing from the back.  This function behaves i
 
         void resize_back( size_type )
         
+        void resize_back( size_type, const T & )
+        
 Adds a new element to the front of the veque.
 
         void push_front( const T & )
@@ -242,8 +244,6 @@ All other modifier functions match the behavior, complexity, and exception rules
         reference emplace_back( Args && ... args )
         
         void pop_back()
-        
-        void resize_back( size_type, const T & )
 
         void resize( size_type )
         
