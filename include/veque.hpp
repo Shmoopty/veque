@@ -580,7 +580,7 @@
     veque<T,Alloc>::veque(veque &&other, const Alloc& alloc ) noexcept
         : _size{ 0 }
         , _offset{ 0 }
-        , _data{ nullptr }
+        , _data{ nullptr, alloc }
     {
         *this = std::move(other);
     }
@@ -665,7 +665,8 @@
     template <typename T, typename Alloc>
     veque<T,Alloc> & veque<T,Alloc>::operator=( std::initializer_list<T> lst )
     {
-        swap( veque(lst), static_cast<const Alloc &>(_data) );
+        auto replacement = veque(lst, static_cast<const Alloc &>(_data) );
+        swap( replacement );
         return *this;
     }
 
@@ -787,8 +788,11 @@
     typename veque<T,Alloc>::size_type veque<T,Alloc>::max_size() const noexcept
     {
         return std::min( {
-            std::numeric_limits<ssize_type>::max(),
+            // The size type's ceiling
+            std::numeric_limits<ssize_type>::max() / sizeof(T),
+            // The allocator's ceiling
             std::allocator_traits<Alloc>::max_size,
+            // Ceiling imposed by std::rational math
             std::numeric_limits<size_type>::max() / front_realloc::type::num,
         } );
     }
