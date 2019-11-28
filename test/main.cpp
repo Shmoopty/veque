@@ -975,6 +975,67 @@ TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][templa
     CHECK( veq1[3] == val<typename TestType::value_type,2> );
     CHECK( veq1.at(3) == val<typename TestType::value_type,2> );
     CHECK_THROWS( veq1.at(4) );
+
+    auto it = veq1.begin();
+    CHECK( it != veq1.end() );
+    CHECK( *it == val<typename TestType::value_type,5> );
+    ++it;
+    CHECK( it != veq1.end() );
+    CHECK( *it == val<typename TestType::value_type,4> );
+    ++it;
+    CHECK( it != veq1.end() );
+    CHECK( *it == val<typename TestType::value_type,1> );
+    ++it;
+    CHECK( it != veq1.end() );
+    CHECK( *it == val<typename TestType::value_type,2> );
+    ++it;
+    CHECK( it == veq1.end() );
+    
+    auto c_it = veq1.cbegin();
+    CHECK( c_it != veq1.cend() );
+    CHECK( *c_it == val<typename TestType::value_type,5> );
+    ++c_it;
+    CHECK( c_it != veq1.cend() );
+    CHECK( *c_it == val<typename TestType::value_type,4> );
+    ++c_it;
+    CHECK( c_it != veq1.cend() );
+    CHECK( *c_it == val<typename TestType::value_type,1> );
+    ++c_it;
+    CHECK( c_it != veq1.cend() );
+    CHECK( *c_it == val<typename TestType::value_type,2> );
+    ++c_it;
+    CHECK( c_it == veq1.cend() );
+    
+
+    auto r_it = veq1.rbegin();
+    CHECK( r_it != veq1.rend() );
+    CHECK( *r_it == val<typename TestType::value_type,2> );
+    ++r_it;
+    CHECK( r_it != veq1.rend() );
+    CHECK( *r_it == val<typename TestType::value_type,1> );
+    ++r_it;
+    CHECK( r_it != veq1.rend() );
+    CHECK( *r_it == val<typename TestType::value_type,4> );
+    ++r_it;
+    CHECK( r_it != veq1.rend() );
+    CHECK( *r_it == val<typename TestType::value_type,5> );
+    ++r_it;
+    CHECK( r_it == veq1.rend() );
+    
+    auto cr_it = veq1.crbegin();
+    CHECK( cr_it != veq1.crend() );
+    CHECK( *cr_it == val<typename TestType::value_type,2> );
+    ++cr_it;
+    CHECK( cr_it != veq1.crend() );
+    CHECK( *cr_it == val<typename TestType::value_type,1> );
+    ++cr_it;
+    CHECK( cr_it != veq1.crend() );
+    CHECK( *cr_it == val<typename TestType::value_type,4> );
+    ++cr_it;
+    CHECK( cr_it != veq1.crend() );
+    CHECK( *cr_it == val<typename TestType::value_type,5> );
+    ++cr_it;
+    CHECK( cr_it == veq1.crend() );
     
     veq1.pop_front();
 
