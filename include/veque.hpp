@@ -15,16 +15,9 @@
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <ratio>
 #include <stdexcept>
 #include <utility>
-
-#if __cplusplus >= 201703L
-#define VEQUE_HEADER_CPP17 1
-#endif
-
-#if __cplusplus >= 202000L
-#define VEQUE_HEADER_CPP20 1
-#endif
 
     template <typename T, typename Allocator = std::allocator<T> >
     class veque {
@@ -57,11 +50,11 @@
         veque( veque && ) noexcept;
         veque( veque &&, const Allocator& ) noexcept;
         ~veque();
-        veque & operator=(const veque &);
-        veque & operator=(veque &&) noexcept(
+        veque & operator=( const veque & );
+        veque & operator=( veque && ) noexcept(
             noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value
             || std::allocator_traits<Allocator>::is_always_equal::value) );
-        veque & operator=(std::initializer_list<T>);
+        veque & operator=( std::initializer_list<T> );
         void assign(size_type, const T &value);
         void assign(iterator, iterator);
         void assign(std::initializer_list<T>);
@@ -101,11 +94,11 @@
         void reserve(size_type);
         void reserve_front(size_type);
         void reserve_back(size_type);
-        // Returns current storage + unused allocated storage before front()
+        // Returns current size + unused allocated storage before front()
         size_type capacity_front() const noexcept;
-        // Returns current storage + unused allocated storage after back()
+        // Returns current size + unused allocated storage after back()
         size_type capacity_back() const noexcept;
-        // Returns current storage + all unused allocated storage
+        // Returns current size + all unused allocated storage
         size_type capacity_full() const noexcept;
         // To achieve interface parity with std::vector, capacity() returns capacity_back();
         size_type capacity() const noexcept;
@@ -147,7 +140,15 @@
             || std::allocator_traits<Allocator>::is_always_equal::value));
 
     private:
-        size_type _size = 0;    // Numer of elements in use
+        // Relative to size, amount of unused space to reserve when reallocating
+        using front_realloc = std::ratio<1>;
+        using back_realloc = std::ratio<1>;
+        
+        static_assert( std::ratio_greater_equal_v<front_realloc,std::ratio<0>> );
+        static_assert( std::ratio_greater_equal_v<back_realloc,std::ratio<0>> );
+        using full_realloc = std::ratio_add<std::ratio<1>,std::ratio_add<front_realloc,back_realloc>>;
+        
+        size_type _size = 0;    // Number of elements in use
         size_type _offset = 0;  // Element offset of begin()
         struct Data : Allocator // Employing EBO, since the allocator is frequently monostate.
         {
@@ -190,7 +191,7 @@
         // Create an uninitialized empty veque, with storage for expected size
         veque( allocate_uninitialized_tag, size_type size, const Allocator& );
         // Create an uninitialized empty veque, with specified storage params
-        veque( allocate_uninitialized_tag, size_type allocated, size_type offset, const Allocator& );
+        veque( allocate_uninitialized_tag, size_type size, size_type allocated, size_type offset, const Allocator& );
         // Acquire Allocator
         Allocator& priv_allocator();
         const Allocator& priv_allocator() const;
@@ -199,9 +200,18 @@
         // Construct elements in range
         template< typename ...Args >
         void priv_construct( const_iterator begin, const_iterator end, const Args & ...args );
-        
-        // Move vector to new storage, with default capacity for current size
-        void priv_reallocate();
+
+        template< typename ...Args >
+        void priv_resize_front(size_type, const Args & ...);
+        template< typename ...Args >
+        void priv_resize_back(size_type, const Args & ...);
+
+        // Move veque to new storage, with default capacity for specified larger size...
+        // ...and current elements at front of this storage
+        void priv_reallocate_front( size_type count );
+        // ...and current elements at back of this storage
+        void priv_reallocate_back( size_type count );
+        // Move vector to new storage, with specified capacity
         void priv_reallocate( size_type allocated, size_type offset );
         // Insert empty space, choosing the most efficient way to shift existing elements
         iterator priv_insert_storage( const_iterator it, size_type count );
@@ -264,17 +274,25 @@
             std::allocator_traits<Alloc>::construct( priv_allocator(), i, args... );
         }
     }
+    
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::priv_reallocate_front( veque<T,Alloc>::size_type count )
+    {
+        priv_reallocate( count * full_realloc::num / full_realloc::den,
+                         count * front_realloc::type::num / front_realloc::type::den );
+    }
 
     template <typename T, typename Alloc>
-    void veque<T,Alloc>::priv_reallocate()
+    void veque<T,Alloc>::priv_reallocate_back( veque<T,Alloc>::size_type count )
     {
-        priv_reallocate( 3 * size() + 3, size() + 1 );
+        priv_reallocate( count * full_realloc::num / full_realloc::den,
+                         count - size() + count * front_realloc::type::num / front_realloc::type::den );
     }
     
     template <typename T, typename Alloc>
-    void veque<T,Alloc>::priv_reallocate( veque<T,Alloc>::size_type allocated, veque<T,Alloc>::size_type offset  )
+    void veque<T,Alloc>::priv_reallocate( veque<T,Alloc>::size_type allocated, veque<T,Alloc>::size_type offset )
     {
-        auto replacement = veque( allocate_uninitialized_tag{}, allocated, offset, priv_allocator() );
+        auto replacement = veque( allocate_uninitialized_tag{}, size(), allocated, offset, priv_allocator() );
 
         if ( size() )
         {
@@ -292,7 +310,6 @@
                 }
             }
         }
-        replacement._size = _size;
         swap( replacement );
     }
     
@@ -482,7 +499,6 @@
                     ++dest;
                 }
             }
-            replacement._size = required_size;
             swap(replacement);
             return begin() + index;
         }
@@ -598,7 +614,6 @@
                         ++dest;
                     }
                 }
-                replacement._size = other.size();
                 swap(replacement);            
             }
         }
@@ -608,15 +623,15 @@
     template <typename T, typename Alloc>
     veque<T,Alloc>::veque( allocate_uninitialized_tag, size_type size, const Alloc & alloc )
         : _size{ size }
-        , _offset{ size + 1 }
-        , _data { size * 3 + 3, alloc }
+        , _offset{ size * front_realloc::type::num / front_realloc::type::den }
+        , _data { size * full_realloc::num / full_realloc::den, alloc }
     {
     }        
         
     // Private impl for setting up custom storage
     template <typename T, typename Alloc>
-    veque<T,Alloc>::veque( allocate_uninitialized_tag, size_type allocated, size_type _offset, const Alloc & alloc )
-        : _size{ 0 }
+    veque<T,Alloc>::veque( allocate_uninitialized_tag, size_type size, size_type allocated, size_type _offset, const Alloc & alloc )
+        : _size{ size }
         , _offset{ _offset }
         , _data { allocated, alloc }
     {
@@ -674,7 +689,6 @@
                         priv_nothrow_move_construct( dest, &src );                  
                         ++dest;
                     }
-                    replacement._size = other._size;
                 }
                 swap( replacement );
             }
@@ -800,7 +814,11 @@
     template <typename T, typename Alloc>
     typename veque<T,Alloc>::size_type veque<T,Alloc>::max_size() const noexcept
     {
-        return std::min( std::numeric_limits<ssize_type>::max(), std::allocator_traits<Alloc>::max_size );
+        return std::min( {
+            std::numeric_limits<ssize_type>::max(),
+            std::allocator_traits<Alloc>::max_size,
+            std::numeric_limits<size_type>::max() / front_realloc::type::num,                    
+        } );
     }
 
     template <typename T, typename Alloc>
@@ -828,81 +846,69 @@
     }
 
     template <typename T, typename Alloc>
-    void veque<T,Alloc>::resize_back( veque<T,Alloc>::size_type count )
+    template< typename ...Args >
+    void veque<T,Alloc>::priv_resize_back( size_type count, const Args & ... args )
     {
         if ( count > size() )
         {
             if ( count > capacity_back() )
             {
-                priv_reallocate( count * 3, count );
+                priv_reallocate_front( count );
             }
-            priv_construct( end(), begin() + count );
+            priv_construct( end(), begin() + count, args... );
         }
         else
         {
             priv_destroy( begin() + count, end() );
         }
         _size = count;
+    }
+
+    template <typename T, typename Alloc>
+    void veque<T,Alloc>::resize_back( veque<T,Alloc>::size_type count )
+    {
+        priv_resize_back( count );
     }
 
     template <typename T, typename Alloc>
     void veque<T,Alloc>::resize_back( veque<T,Alloc>::size_type count, const T & value )
     {
-        if ( count > size() )
+        priv_resize_back( count, value );
+    }
+
+    template <typename T, typename Alloc>
+    template< typename ...Args >
+    void veque<T,Alloc>::priv_resize_front( veque<T,Alloc>::size_type count, const Args & ...args )
+    {
+        difference_type delta = count - size();
+        if ( delta > 0 )
         {
-            if ( count > capacity_back() )
+            if ( count > capacity_front() )
             {
-                priv_reallocate( count * 3, count );
+                priv_reallocate( count );
             }
-            priv_construct( end(), begin() + count, value );
+            auto new_begin = begin() - delta;
+            priv_construct( new_begin, begin(), args... );
         }
         else
         {
-            priv_destroy( begin() + count, end() );
+            auto new_begin = begin() - delta;
+            priv_destroy( begin(), new_begin );
         }
         _size = count;
+        _offset -= delta;
     }
 
     template <typename T, typename Alloc>
     void veque<T,Alloc>::resize_front( veque<T,Alloc>::size_type count )
     {
-        difference_type delta = count - size();
-        auto new_begin = begin() - delta;
-        if ( delta > 0 )
-        {
-            if ( count > capacity_front() )
-            {
-                priv_reallocate( count * 3, count );
-            }
-            priv_construct( new_begin, begin() );
-        }
-        else
-        {
-            priv_destroy( begin(), new_begin );
-        }
-        _size = count;
-        _offset -= delta;
+        priv_resize_front( count );
     }
 
     template <typename T, typename Alloc>
     void veque<T,Alloc>::resize_front( veque<T,Alloc>::size_type count, const T & value )
     {
-        difference_type delta = count - size();
-        auto new_begin = begin() - delta;
-        if ( delta > 0 )
-        {
-            if ( count > capacity_front() )
-            {
-                priv_reallocate( count * 3, count );
-            }
-            priv_construct( new_begin, begin(), value );
-        }
-        else
-        {
-            priv_destroy( begin(), new_begin );
-        }
-        _size = count;
-        _offset -= delta;
+        priv_resize_front( count, value );
     }
     
     template <typename T, typename Alloc>
@@ -923,7 +929,7 @@
     {
         if ( count > capacity_front() )
         {
-            priv_reallocate( size() * 2 + count, count );
+            priv_reallocate( capacity_back() + count, count );
         }
     }
 
@@ -932,7 +938,7 @@
     {
         if ( count > capacity_back() )
         {
-            priv_reallocate( size() * 2 + count, size() );
+            priv_reallocate( capacity_front() + count, _offset );
         }
     }
 
@@ -941,9 +947,9 @@
     {
         if ( count > capacity_front() || count > capacity_back() )
         {
-            auto front_unallocated = std::max( capacity_front(), count ) - size();
-            auto back_unallocated = std::max( capacity_back(), count ) - size();
-            priv_reallocate( front_unallocated + size() + back_unallocated, front_unallocated );
+            auto front_unallocated = std::max( capacity_front(), count );
+            auto back_unallocated = std::max( capacity_back(), count );
+            priv_reallocate( front_unallocated - size() + back_unallocated, front_unallocated );
         }
     }
 
@@ -1030,7 +1036,7 @@
     {
         if ( size() == capacity_back() )
         {
-            priv_reallocate();
+            priv_reallocate_front( size() + 1 );
         }
         std::allocator_traits<Alloc>::construct( priv_allocator(), end(), std::forward<Args>(args)... );
         ++_size;
@@ -1042,7 +1048,7 @@
     {
         if ( size() == capacity_back() )
         {
-            priv_reallocate();
+            priv_reallocate_front( size() + 1 );
         }
         std::allocator_traits<Alloc>::construct( priv_allocator(), end(), val );
         ++_size;
@@ -1053,7 +1059,7 @@
     {
         if ( size() == capacity_back() )
         {
-            priv_reallocate();
+            priv_reallocate_front( size() + 1 );
         }
         std::allocator_traits<Alloc>::construct( priv_allocator(), end(), std::move(val) );
         ++_size;
@@ -1081,7 +1087,7 @@
     {
         if ( size() == capacity_front() )
         {
-            priv_reallocate();
+            priv_reallocate_back( size() + 1 );
         }
         std::allocator_traits<Alloc>::construct( priv_allocator(), begin()-1, std::forward<Args>(args)... );
         ++_size;
@@ -1094,7 +1100,7 @@
     {
         if ( size() == capacity_front() )
         {
-            priv_reallocate();
+            priv_reallocate_back( size() + 1 );
         }
         std::allocator_traits<Alloc>::construct( priv_allocator(), begin()-1, val );
         ++_size;
@@ -1106,7 +1112,7 @@
     {
         if ( size() == capacity_front() )
         {
-            priv_reallocate();
+            priv_reallocate_back( size() + 1 );
         }
         std::allocator_traits<Alloc>::construct( priv_allocator(), begin()-1, std::move(val) );
         ++_size;
