@@ -21,19 +21,23 @@
 
 // An allocator that is stateful, unlikely to be equal to another, and aware of being mismatched
 template<typename T>
-struct GrumpyStatefulAllocator
+struct StatefulAllocator
 {
     using value_type = T;
     static constexpr auto barrier_size = 64;
-    const std::uint32_t barrier = 0xDEADBEEF + rand();
+    std::uint32_t barrier = 0xDEADBEEF + rand();
 
-    GrumpyStatefulAllocator() = default;
-    GrumpyStatefulAllocator(const GrumpyStatefulAllocator &) = default;
+    StatefulAllocator() = default;
+    constexpr StatefulAllocator(const StatefulAllocator &) = default;
+    constexpr StatefulAllocator(StatefulAllocator &&) = default;
     template< class U >
-    GrumpyStatefulAllocator( const GrumpyStatefulAllocator<U>& other ) noexcept
+    StatefulAllocator( const StatefulAllocator<U>& other ) noexcept
         : barrier{ other.barrier }
     {
     }
+
+    constexpr StatefulAllocator& operator=(const StatefulAllocator &) = default;
+    constexpr StatefulAllocator& operator=(StatefulAllocator &&) = default;
 
     T* allocate( std::size_t n )
     {
@@ -45,27 +49,48 @@ struct GrumpyStatefulAllocator
 
     void deallocate( T* p, std::size_t n )
     {
-        std::byte * ptr = reinterpret_cast<std::byte*>(p) - barrier_size;
-        if ( *reinterpret_cast<std::uint64_t*>(ptr) != barrier )
+        if ( p )
         {
-            throw std::runtime_error{"Grumpy allocator mismatch"};
+            std::byte * ptr = reinterpret_cast<std::byte*>(p) - barrier_size;
+            if ( *reinterpret_cast<std::uint64_t*>(ptr) != barrier )
+            {
+                throw std::runtime_error{"StatefulAllocator mismatch"};
+            }
+            if ( *reinterpret_cast<std::uint64_t*>(ptr + n * sizeof(T) + barrier_size) != barrier )
+            {
+                throw std::runtime_error{"StatefulAllocator mismatch"};
+            }
+            std::free( ptr );
         }
-        if ( *reinterpret_cast<std::uint64_t*>(ptr + n * sizeof(T) + barrier_size) != barrier )
-        {
-            throw std::runtime_error{"Grumpy allocator mismatch"};
-        }
-        std::free( ptr );
     }
+    using propagate_on_container_copy_assignment = std::false_type;
+    using propagate_on_container_move_assignment = std::false_type;
+    using propagate_on_container_swap = std::false_type;
+};
+
+template<typename T>
+struct PropogatingStatefulAllocator : StatefulAllocator<T>
+{
+    PropogatingStatefulAllocator() = default;
+    constexpr PropogatingStatefulAllocator(const PropogatingStatefulAllocator<T> &) = default;
+    constexpr PropogatingStatefulAllocator(PropogatingStatefulAllocator<T> &&) = default;
+    template< class U >
+    PropogatingStatefulAllocator( const PropogatingStatefulAllocator<U>& other ) noexcept : StatefulAllocator<T>{other} {}
+    constexpr PropogatingStatefulAllocator& operator=(const PropogatingStatefulAllocator<T> &o) = default;
+    constexpr PropogatingStatefulAllocator& operator=(PropogatingStatefulAllocator<T> &&o) = default;
+    using propagate_on_container_copy_assignment = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+    using propagate_on_container_swap = std::true_type;
 };
 
 template< class T1, class T2 >
-bool operator==( const GrumpyStatefulAllocator<T1>& lhs, const GrumpyStatefulAllocator<T2>& rhs ) noexcept
+bool operator==( const StatefulAllocator<T1>& lhs, const StatefulAllocator<T2>& rhs ) noexcept
 {
     return lhs.barrier == rhs.barrier;
 }
 
 template< class T1, class T2 >
-bool operator!=( const GrumpyStatefulAllocator<T1>& lhs, const GrumpyStatefulAllocator<T2>& rhs ) noexcept
+bool operator!=( const StatefulAllocator<T1>& lhs, const StatefulAllocator<T2>& rhs ) noexcept
 {
     return lhs.barrier != rhs.barrier;
 }
@@ -155,9 +180,12 @@ template<typename T>
 using StdVeque = veque<T>;
 
 template<typename T>
-using GrumpyVeque = veque<T,GrumpyStatefulAllocator<T>>;
+using GrumpyVeque = veque<T,StatefulAllocator<T>>;
 
-TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template]", (StdVeque, GrumpyVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject) )
+template<typename T>
+using PropogatingGrumpyVeque = veque<T,PropogatingStatefulAllocator<T>>;
+
+TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject) )
 {
     TestType v( 5 );
 
@@ -245,7 +273,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque][template]", (StdVeque, GrumpyVeque), (bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ ) )
+TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ ) )
 {
     typename TestType::size_type size = 5;
     TestType v( size );
@@ -334,7 +362,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque][template]", (StdVeque, 
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdVeque, GrumpyVeque), (bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ ) )
+TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ ) )
 {
     typename TestType::size_type size = 5;
     TestType v( size );
@@ -471,7 +499,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "veques can be modified at either end with strong exception guarantee", "[veque][template]", (StdVeque, GrumpyVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject ) )
+TEMPLATE_PRODUCT_TEST_CASE( "veques can be modified at either end with strong exception guarantee", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject ) )
 {
     TestType v( 5 );
 
@@ -618,20 +646,41 @@ template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 
-TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
+    using VectorType = std::vector<typename TestType::value_type, typename TestType::allocator_type>;
+            
     TestType veq;
-    std::vector<typename TestType::value_type, typename TestType::allocator_type> vec;
+    VectorType vec;
 
     srand(time(NULL));
     
     auto tests = std::vector<std::function<void()>>{
         [&]
         {
+            INFO( "il assign" );
+            veq = { val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> };
+            vec = { val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> };
+        },
+        [&]
+        {
+            INFO( "rvalue assign" );
+            veq = TestType{ val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> };
+            vec = VectorType{ val<typename TestType::value_type,4>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2> };
+        },
+        [&]
+        {
             INFO( "resize" );
             auto new_size = rand() % 10'000;
             veq.resize(new_size);
             vec.resize(new_size);
+        },
+        [&]
+        {
+            INFO( "resize 2" );
+            auto new_size = rand() % 10'000;
+            veq.resize(new_size, val<typename TestType::value_type,2>);
+            vec.resize(new_size, val<typename TestType::value_type,2>);
         },
         [&]
         {
@@ -645,9 +694,9 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
         [&]
         {
             INFO( "[]" );
-            if ( veq.size() )
+            if ( veq.ssize() )
             {
-                auto index = rand() % veq.size();
+                auto index = rand() % veq.ssize();
                 CHECK( veq[index] == vec[index] );
             }
         },
@@ -754,7 +803,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
             if ( vec.size() > 2 )
             {
                 auto veq2 = TestType( veq.begin() + 1, veq.end() - 1 );
-                auto vec2 = std::vector<typename TestType::value_type, typename TestType::allocator_type>( vec.begin() + 1, vec.end() - 1 );
+                auto vec2 = VectorType( vec.begin() + 1, vec.end() - 1 );
                 if ( veq.get_allocator() == veq2.get_allocator() && vec.get_allocator() == vec2.get_allocator() )
                 {
                     // UB, otherwise.
@@ -772,7 +821,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
     TestType veq;
     std::deque<typename TestType::value_type, typename TestType::allocator_type> deq;
@@ -933,7 +982,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", 
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
     TestType veq1;
     
@@ -1005,7 +1054,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][templa
     CHECK( *c_it == val<typename TestType::value_type,2> );
     ++c_it;
     CHECK( c_it == veq1.cend() );
-    
+
 
     auto r_it = veq1.rbegin();
     CHECK( r_it != veq1.rend() );
@@ -1087,7 +1136,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][templa
     CHECK( !(veq1 != veq2) );
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
     TestType veq{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>  };
     veq.reserve(20);
@@ -1163,12 +1212,13 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     SECTION( "pop erasure" )
     {
         // pop erasure
-        veq.pop_front();
+        CHECK( veq.pop_front_instance() == val<typename TestType::value_type,1> );
         
         CHECK( veq.size() == 2 );
         CHECK( veq == TestType{ val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
-        veq.pop_back();
+        CHECK( veq.pop_back_instance() == val<typename TestType::value_type,3> );
+
         CHECK( veq.size() == 1 );
         CHECK( veq == TestType{ val<typename TestType::value_type,2> } );
     }
@@ -1197,7 +1247,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
         CHECK( veq.size() == 6 );
         CHECK( veq == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
     }
-    SECTION( "range resizing  insertion" )
+    SECTION( "range resizing insertion" )
     {
         veq.shrink_to_fit();
         auto veq2 = TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3> };
@@ -1205,6 +1255,20 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
 
         CHECK( veq.size() == 6 );
         CHECK( veq == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,4>, val<typename TestType::value_type,3>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
+    }
+    SECTION( "resize_back growth 1" )
+    {
+        veq.resize_back( 4 );
+
+        CHECK( veq.size() == 4 );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, typename TestType::value_type{} } );
+    }
+    SECTION( "resize_back growth 2" )
+    {
+        veq.resize_back( 4, val<typename TestType::value_type,5> );
+
+        CHECK( veq.size() == 4 );
+        CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,5> } );
     }
     SECTION( "resize_back erasure" )
     {
@@ -1214,6 +1278,20 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
         CHECK( veq.size() == 1 );
         CHECK( veq == TestType{ val<typename TestType::value_type,1> } );
     }
+    SECTION( "resize_front growth 1" )
+    {
+        veq.resize_front( 4 );
+
+        CHECK( veq.size() == 4 );
+        CHECK( veq == TestType{ typename TestType::value_type{}, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
+    }
+    SECTION( "resize_front growth 2" )
+    {
+        veq.resize_front( 4, val<typename TestType::value_type,5> );
+
+        CHECK( veq.size() == 4 );
+        CHECK( veq == TestType{ val<typename TestType::value_type,5>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
+    }
     SECTION( "resize_front erasure" )
     {
         // resize erasure
@@ -1222,7 +1300,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
         CHECK( veq.size() == 1 );
         CHECK( veq == TestType{ val<typename TestType::value_type,3> } );
     }
-    SECTION( "resize_front erasure" )
+    SECTION( "initializer list insertion" )
     {
         // initializer list insertion
         veq.insert( veq.end(), {val<typename TestType::value_type,0>, val<typename TestType::value_type,1>, val<typename TestType::value_type,2>} );
@@ -1301,7 +1379,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "hashing", "[veque][template]", (StdVeque, GrumpyVeque), (int, std::string, double ) )
+TEMPLATE_PRODUCT_TEST_CASE( "hashing", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double ) )
 {
     std::unordered_set<TestType> uset;
     
