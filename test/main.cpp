@@ -655,7 +655,23 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
 
     srand(time(NULL));
     
+    REQUIRE( veq.max_size() >= 20'000 );
+    
     auto tests = std::vector<std::function<void()>>{
+        [&]
+        {
+            INFO( "data" );
+            CHECK( veq == TestType( veq.data(), veq.data() + veq.size() ) );
+            CHECK( vec == VectorType( vec.data(), vec.data() + vec.size() ) );
+        },
+        [&]
+        {
+            INFO( "const data" );
+            const auto & veq2 = veq;
+            const auto & vec2 = vec;
+            CHECK( veq2 == TestType( veq2.data(), veq2.data() + veq2.size() ) );
+            CHECK( vec2 == VectorType( vec2.data(), vec2.data() + vec2.size() ) );
+        },
         [&]
         {
             INFO( "il assign" );
@@ -799,7 +815,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
         },
         [&]
         {
-            INFO( "swap" );
+            INFO( "swap 1" );
             if ( vec.size() > 2 )
             {
                 auto veq2 = TestType( veq.begin() + 1, veq.end() - 1 );
@@ -809,6 +825,41 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
                     // UB, otherwise.
                     veq.swap( veq2 );
                     vec.swap( vec2 );
+                }
+            }
+        },
+        [&]
+        {
+            INFO( "swap 2" );
+            if ( vec.size() > 2 )
+            {
+                auto veq2 = TestType( veq.begin() + 1, veq.end() - 1 );
+                auto vec2 = VectorType( vec.begin() + 1, vec.end() - 1 );
+                if ( veq.get_allocator() == veq2.get_allocator() && vec.get_allocator() == vec2.get_allocator() )
+                {
+                    // UB, otherwise.
+                    using std::swap;
+                    swap( veq, veq2 );
+                    swap( vec, vec2 );
+                }
+            }
+        },
+        [&]
+        {
+            INFO( "swap 3" );
+            if ( vec.size() > 2 )
+            {
+                auto veq2 = TestType( veq.begin() + 1, veq.end() - 1 );
+                auto veq3 = TestType( std::move(veq2), veq.get_allocator() );
+                auto vec2 = VectorType( vec.begin() + 1, vec.end() - 1 );
+                auto vec3 = VectorType( std::move(vec2), vec.get_allocator() );
+
+                // UB, otherwise.
+                if ( veq.get_allocator() == veq2.get_allocator() && vec.get_allocator() == vec2.get_allocator() )
+                {
+                    using std::swap;
+                    swap( veq, veq2 );
+                    swap( vec, vec2 );
                 }
             }
         }
@@ -847,11 +898,33 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", 
         },
         [&]
         {
+            INFO( "const at" );
+            if ( veq.size() )
+            {
+                const auto veq2 = veq;
+                const auto deq2 = deq;
+                auto index = rand() % veq.size();
+                CHECK( veq2.at(index) == deq2.at(index) );
+            }
+        },
+        [&]
+        {
             INFO( "[]" );
             if ( veq.size() )
             {
                 auto index = rand() % veq.size();
                 CHECK( veq[index] == deq[index] );
+            }
+        },
+        [&]
+        {
+            INFO( "[]" );
+            if ( veq.size() )
+            {
+                const auto & veq2 = veq;
+                const auto & deq2 = deq;
+                auto index = rand() % veq.size();
+                CHECK( veq2[index] == deq2[index] );
             }
         },
         [&]
@@ -864,10 +937,30 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", 
         },
         [&]
         {
+            INFO( "const front" );
+            if ( veq.size() )
+            {
+                const auto & veq2 = veq;
+                const auto & deq2 = deq;
+                CHECK( veq2.front() == deq2.front() );
+            }
+        },
+        [&]
+        {
             INFO( "back" );
             if ( veq.size() )
             {
                 CHECK( veq.back() == deq.back() );
+            }
+        },
+        [&]
+        {
+            INFO( "const back" );
+            if ( veq.size() )
+            {
+                const auto & veq2 = veq;
+                const auto & deq2 = deq;
+                CHECK( veq2.back() == deq2.back() );
             }
         },
         [&]
@@ -950,6 +1043,62 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", 
             if ( veq.size() )
             {
                 CHECK( *veq.rbegin() == *deq.rbegin() );
+            }
+        },
+        [&]
+        {
+            INFO( "end" );
+            if ( veq.size() )
+            {
+                CHECK( *(veq.end()-1) == *--deq.end() );
+            }
+        },
+        [&]
+        {
+            INFO( "rend" );
+            if ( veq.size() )
+            {
+                CHECK( *(veq.rend()-1) == *--deq.rend() );
+            }
+        },
+        [&]
+        {
+            INFO( "const begin" );
+            if ( veq.size() )
+            {
+                const auto veq2 = veq;
+                const auto deq2 = deq;
+                CHECK( *veq2.begin() == *deq2.begin() );
+            }
+        },
+        [&]
+        {
+            INFO( "const rbegin" );
+            if ( veq.size() )
+            {
+                const auto veq2 = veq;
+                const auto deq2 = deq;
+                CHECK( *veq2.rbegin() == *deq2.rbegin() );
+            }
+        },
+        [&]
+        {
+            INFO( "const end" );
+            if ( veq.size() )
+            {
+                const auto veq2 = veq;
+                const auto deq2 = deq;
+                CHECK( *(veq2.end()-1) == *--deq2.end() );
+            }
+        },
+        [&]
+        {
+            INFO( "const rend" );
+            if ( veq.size() )
+            {
+                const auto veq2 = veq;
+                const auto deq2 = deq;
+                CHECK( *(veq2.rend()-1) == *--deq2.rend() );
             }
         },
         [&]

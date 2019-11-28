@@ -158,6 +158,10 @@
                 , _storage{ std::allocator_traits<Allocator>::allocate( allocator(), capacity ) }
             {
             }
+            Data( const Allocator & alloc )
+                : Allocator{alloc}
+            {
+            }
             Data( nullptr_t ) {}
             Data( const Data& ) = delete;
             Data( Data && o )
@@ -523,7 +527,7 @@
     veque<T,Alloc>::veque( InputIt first, InputIt last, const Alloc& alloc )
         : veque{ allocate_uninitialized_tag{}, veque<T,Alloc>::size_type(std::distance(first,last)), alloc }
     {
-        for ( auto && dest : *this )
+        for ( auto & dest : *this )
         {
             std::allocator_traits<Alloc>::construct( priv_allocator(), &dest, *first );
             ++first;
@@ -535,7 +539,7 @@
         : veque{ allocate_uninitialized_tag{}, lst.size(), alloc }
     {
         auto dest = begin();
-        for ( auto && src : lst )
+        for ( const auto & src : lst )
         {
             std::allocator_traits<Alloc>::construct( priv_allocator(), dest, src );
             ++dest;
@@ -572,17 +576,47 @@
 
     template <typename T, typename Alloc>
     veque<T,Alloc>::veque(veque &&other) noexcept
-        : veque( other, other.priv_allocator() )
+        : _data { nullptr }
     {
+        *this = std::move(other);
     }
 
     template <typename T, typename Alloc>
-    veque<T,Alloc>::veque(veque &&other, const Alloc& alloc ) noexcept
+    veque<T,Alloc>::veque( veque && other, const Alloc& alloc ) noexcept
         : _size{ 0 }
         , _offset{ 0 }
-        , _data{ nullptr, alloc }
+        , _data{ alloc }
     {
-        *this = std::move(other);
+        if constexpr ( std::allocator_traits<Alloc>::is_always_equal::value )
+        {
+            *this = std::move(other);
+        }
+        else
+        {
+            if ( alloc == other.priv_allocator() )
+            {
+                *this = std::move(other);
+            }
+            else
+            {
+                // Incompatible allocators.  Allocate new storage.
+                auto replacement = veque( allocate_uninitialized_tag{}, other.size(), priv_allocator() );
+                if constexpr ( std::is_trivially_copyable_v<T> )
+                {
+                    std::memcpy( replacement.begin(), other.begin(), other.size() * sizeof(T) );
+                }
+                else
+                {
+                    auto dest = replacement.begin();
+                    for ( auto && src : other  )
+                    {
+                        priv_nothrow_move_construct( dest, &src );
+                        ++dest;
+                    }
+                }
+                swap( replacement );
+            }
+        }
     }
 
     // Private impl for setting up custom storage
@@ -641,21 +675,7 @@
             }
             else
             {
-                // Incompatible allocators.  Allocate new storage.
-                auto replacement = veque( allocate_uninitialized_tag{}, other.size(), priv_allocator() );
-                if constexpr ( std::is_trivially_copyable_v<T> )
-                {
-                    std::memcpy( replacement.begin(), other.begin(), other.size() * sizeof(T) );
-                }
-                else
-                {
-                    auto dest = replacement.begin();
-                    for ( auto && src : other  )
-                    {
-                        priv_nothrow_move_construct( dest, &src );
-                        ++dest;
-                    }
-                }
+                auto replacement = veque( std::move(other), priv_allocator() );
                 swap( replacement );
             }
         }
@@ -665,7 +685,7 @@
     template <typename T, typename Alloc>
     veque<T,Alloc> & veque<T,Alloc>::operator=( std::initializer_list<T> lst )
     {
-        auto replacement = veque(lst, static_cast<const Alloc &>(_data) );
+        auto replacement = veque(lst, _data.allocator() );
         swap( replacement );
         return *this;
     }
@@ -673,19 +693,19 @@
     template <typename T, typename Alloc>
     void veque<T,Alloc>::assign( typename veque<T,Alloc>::size_type count, const T & value )
     {
-        *this = veque( count, value, static_cast<const Alloc &>(_data) );
+        *this = veque( count, value, _data.allocator() );
     }
 
     template <typename T, typename Alloc>
     void veque<T,Alloc>::assign( typename veque<T,Alloc>::iterator first, veque<T,Alloc>::iterator last )
     {
-        *this = veque( first, last, static_cast<const Alloc &>(_data) );
+        *this = veque( first, last, _data.allocator() );
     }
 
     template <typename T, typename Alloc>
     void veque<T,Alloc>::assign(std::initializer_list<T> lst)
     {
-        *this = veque( lst, static_cast<const Alloc &>(_data) );
+        *this = veque( lst, _data.allocator() );
     }
 
     template <typename T, typename Alloc>
@@ -791,7 +811,7 @@
             // The size type's ceiling
             std::numeric_limits<ssize_type>::max() / sizeof(T),
             // The allocator's ceiling
-            std::allocator_traits<Alloc>::max_size,
+            std::allocator_traits<Alloc>::max_size(priv_allocator()),
             // Ceiling imposed by std::rational math
             std::numeric_limits<size_type>::max() / front_realloc::type::num,
         } );
@@ -996,13 +1016,13 @@
     template <typename T, typename Alloc>
     T * veque<T,Alloc>::data() noexcept
     {
-        return &begin();
+        return begin();
     }
 
     template <typename T, typename Alloc>
     const T * veque<T,Alloc>::data() const noexcept
     {
-        return &begin();
+        return begin();
     }
 
     template <typename T, typename Alloc>
@@ -1210,18 +1230,11 @@
         }
         else
         {
-            if ( priv_allocator() == other.priv_allocator() )
-            {
-                // Don't swap _data.allocator().  Like std::vector, UB if allocators don't compare equal
-                std::swap( _size,            other._size );
-                std::swap( _offset,          other._offset );
-                std::swap( _data._allocated, other._data._allocated);
-                std::swap( _data._storage,   other._data._storage);
-            }
-            else
-            {
-                // UB
-            }
+            // Don't swap _data.allocator().  Like std::vector, UB if allocators don't compare equal
+            std::swap( _size,            other._size );
+            std::swap( _offset,          other._offset );
+            std::swap( _data._allocated, other._data._allocated);
+            std::swap( _data._storage,   other._data._storage);
         }
     }
 
