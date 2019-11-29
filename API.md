@@ -210,7 +210,7 @@ Removes element at front of the veque.
 
         void pop_front()
 
-All `insert` and `emplace` functions perform the same tasks as their `std::vector` counterparts.  **However**,
+All `insert`, `emplace` and `erase` functions perform the same tasks as their `std::vector` counterparts.  **However**,
 * The `veque` may be resized from either end.
 * This makes these operations often perform much faster
 * All iterators are invalidated, though.  Consider utilizing the returned iterator.
@@ -227,15 +227,15 @@ All `insert` and `emplace` functions perform the same tasks as their `std::vecto
         iterator insert( const_iterator, std::initializer_list<T> )
         
         template <class ... Args> iterator emplace( const_iterator, Args && ... )
-
-All other modifier functions match the behavior, complexity, and exception rules of C++17 `std::vector`
         
-        void clear() noexcept
-                
         iterator erase( const_iterator )
         
         iterator erase( const_iterator, const_iterator )
         
+All other modifier functions match the behavior, complexity, and exception rules of C++17 `std::vector`
+        
+        void clear() noexcept
+
         void push_back( const T & )
         
         void push_back( T && )
