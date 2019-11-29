@@ -36,8 +36,8 @@ _End-specific resizing:_
 * `capacity_full()`
 
 _Strong exception guarantee pop-and-return, courtesy C++17:_
-* `pop_back_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
-* `pop_front_instance()` (Move-optimized pop-with-return, with strong excpetion guarantee)
+* `pop_back_element()` (Move-optimized pop-with-return, with strong excpetion guarantee)
+* `pop_front_element()` (Move-optimized pop-with-return, with strong excpetion guarantee)
 
 ### Tradeoffs
 Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.

@@ -1361,12 +1361,12 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     SECTION( "pop erasure" )
     {
         // pop erasure
-        CHECK( veq.pop_front_instance() == val<typename TestType::value_type,1> );
+        CHECK( veq.pop_front_element() == val<typename TestType::value_type,1> );
         
         CHECK( veq.size() == 2 );
         CHECK( veq == TestType{ val<typename TestType::value_type,2>, val<typename TestType::value_type,3> } );
 
-        CHECK( veq.pop_back_instance() == val<typename TestType::value_type,3> );
+        CHECK( veq.pop_back_element() == val<typename TestType::value_type,3> );
 
         CHECK( veq.size() == 1 );
         CHECK( veq == TestType{ val<typename TestType::value_type,2> } );

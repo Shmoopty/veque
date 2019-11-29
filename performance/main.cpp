@@ -233,7 +233,7 @@ int front_growth_test(int i) {
         while (v.size()) {
             if constexpr( std::is_same_v<Container, veque<typename Container::value_type>>)
             {
-                auto x = v.pop_back_instance();
+                auto x = v.pop_back_element();
                 i += *reinterpret_cast<char*>(&x);
             }
             else
@@ -261,7 +261,7 @@ int front_growth_test(int i) {
         while (v.size()) {
             if constexpr( std::is_same_v<Container, veque<typename Container::value_type>>)
             {
-                auto x = v.pop_front_instance();
+                auto x = v.pop_front_element();
                 i += *reinterpret_cast<char*>(&x);
             }
             else if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>>)
@@ -569,7 +569,7 @@ int random_operations_test(int i)
             {
                 if constexpr( std::is_same_v<Container, veque<typename Container::value_type>> )
                 {
-                    auto x = veq.pop_front_instance();
+                    auto x = veq.pop_front_element();
                     i += *reinterpret_cast<char*>(&x);
                 }
                 else if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>> )
@@ -592,7 +592,7 @@ int random_operations_test(int i)
             {
                 if constexpr( std::is_same_v<Container, veque<typename Container::value_type>> )
                 {
-                    auto x = veq.pop_back_instance();
+                    auto x = veq.pop_back_element();
                     i += *reinterpret_cast<char*>(&x);
                 }
                 else

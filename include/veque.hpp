@@ -122,10 +122,10 @@
         template <class ... Args> reference emplace_front(Args && ... args);
         void pop_back();
         // Move-savvy pop back with strong exception guarantee
-        T pop_back_instance();
+        T pop_back_element();
         void pop_front();
         // Move-savvy pop front with strong exception guarantee
-        T pop_front_instance();
+        T pop_front_element();
         // Resizes the veque, by adding or removing from the front. 
         void resize_front(size_type);
         void resize_front(size_type, const T &);
@@ -1068,7 +1068,7 @@
     }
 
     template <typename T, typename Alloc>
-    T veque<T,Alloc>::pop_back_instance()
+    T veque<T,Alloc>::pop_back_element()
     {
         auto res( priv_nothrow_move(back()) );
         std::allocator_traits<Alloc>::destroy( priv_allocator(), &back() );
@@ -1123,7 +1123,7 @@
     }
 
     template <typename T, typename Alloc>
-    T veque<T,Alloc>::pop_front_instance()
+    T veque<T,Alloc>::pop_front_element()
     {
         auto res( priv_nothrow_move(front()) );
         std::allocator_traits<Alloc>::destroy( priv_allocator(), &front() );

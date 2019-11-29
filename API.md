@@ -179,11 +179,11 @@ All other capacity functions match the behavior, complexity, and exception rules
 
 Pops and returns back element.  Strong exception safety guaranteed.  Moves element when appropriate.
 
-        T pop_back_instance()
+        T pop_back_element()
 
 Pops and returns front element.  Strong exception safety guaranteed.  Moves element when appropriate.
 
-        T pop_front_instance()
+        T pop_front_element()
         
 Resizes the veque, by adding or removing from the front. 
 
