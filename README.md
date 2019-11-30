@@ -34,10 +34,14 @@ _End-specific resizing:_
 * `capacity_front()`
 * `capacity_back()` (Same as `capacity()`, to match `std::vector` and `std::deque` behavior)
 * `capacity_full()`
+* `reserve(size_type, size_type)`
 
 _Strong exception guarantee pop-and-return, courtesy C++17:_
 * `pop_back_element()`
 * `pop_front_element()`
+
+_Modern stuff:_
+* `ssize()`
 
 ### Tradeoffs
 Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
