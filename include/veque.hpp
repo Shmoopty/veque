@@ -31,6 +31,8 @@
             decltype(std::declval<I&>() == std::declval<I&>())   // InputIterator
         > > : std::true_type {};
         
+        using alloc_traits = std::allocator_traits<Allocator>;
+
     public:
         // Types
         using allocator_type = Allocator;
@@ -62,8 +64,8 @@
         ~veque();
         veque & operator=( const veque & );
         veque & operator=( veque && ) noexcept(
-            noexcept(std::allocator_traits<Allocator>::propagate_on_container_move_assignment::value
-            || std::allocator_traits<Allocator>::is_always_equal::value) );
+            noexcept(alloc_traits::propagate_on_container_move_assignment::value
+            || alloc_traits::is_always_equal::value) );
         veque & operator=( std::initializer_list<T> );
         void assign( size_type, const T &value );
         void assign( iterator, iterator );
@@ -152,8 +154,8 @@
         void resize( size_type );
         void resize( size_type, const T & );
         void swap( veque & ) noexcept(
-            noexcept(std::allocator_traits<Allocator>::propagate_on_container_swap::value
-            || std::allocator_traits<Allocator>::is_always_equal::value));
+            noexcept(alloc_traits::propagate_on_container_swap::value
+            || alloc_traits::is_always_equal::value));
 
     private:
         // Relative to size, amount of unused space to reserve when reallocating
@@ -302,7 +304,7 @@
             auto start = _mutable_iterator(b);
             for ( auto i = start; i != e; ++i )
             {
-                std::allocator_traits<Alloc>::destroy( _allocator(), i );
+                alloc_traits::destroy( _allocator(), i );
             }
         }
     }
@@ -313,7 +315,7 @@
     {
         for ( auto dest = _mutable_iterator(b); dest != e; ++dest )
         {
-            std::allocator_traits<Alloc>::construct( _allocator(), dest, args... );
+            alloc_traits::construct( _allocator(), dest, args... );
         }
     }
     
@@ -322,7 +324,7 @@
     {
         for ( auto dest = _mutable_iterator(b); dest != e; ++dest, ++src )
         {
-            std::allocator_traits<Alloc>::construct( _allocator(), dest, *src );
+            alloc_traits::construct( _allocator(), dest, *src );
         }
     }
 
@@ -391,11 +393,11 @@
         }
         else if constexpr ( std::is_nothrow_move_constructible_v<T> )
         {
-            std::allocator_traits<Alloc>::construct( _allocator(), dest, std::move(*src) );
+            alloc_traits::construct( _allocator(), dest, std::move(*src) );
         }
         else
         {
-            std::allocator_traits<Alloc>::construct( _allocator(), dest, *src );
+            alloc_traits::construct( _allocator(), dest, *src );
         }
     }
 
@@ -410,14 +412,14 @@
         {
             for ( auto dest = b; dest != e; ++dest, ++src )
             {
-                std::allocator_traits<Alloc>::construct( _allocator(), dest, std::move(*src) );
+                alloc_traits::construct( _allocator(), dest, std::move(*src) );
             }
         }
         else
         {
             for ( auto dest = b; dest != e; ++dest, ++src )
             {
-                std::allocator_traits<Alloc>::construct( _allocator(), dest, *src );
+                alloc_traits::construct( _allocator(), dest, *src );
             }
         }
     }
@@ -621,7 +623,7 @@
     veque<T,Alloc>::veque( const veque &other )
         : _size{ other._size }
         , _offset{ 0 }
-        , _data { other._size, std::allocator_traits<Alloc>::select_on_container_copy_construction( other._allocator() ) }
+        , _data { other._size, alloc_traits::select_on_container_copy_construction( other._allocator() ) }
     {
         _copy_construct_range( begin(), end(), other.begin() );
     }
@@ -648,7 +650,7 @@
         , _offset{ 0 }
         , _data{ alloc }
     {
-        if constexpr ( !std::allocator_traits<Alloc>::is_always_equal::value )
+        if constexpr ( !alloc_traits::is_always_equal::value )
         {
             if ( alloc != other._allocator() )
             {
@@ -689,7 +691,7 @@
     template< typename T, typename Alloc >
     veque<T,Alloc> & veque<T,Alloc>::operator=( const veque & other )
     {
-        if constexpr ( std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value )
+        if constexpr ( alloc_traits::propagate_on_container_copy_assignment::value )
         {
             if ( other._allocator() != _allocator() || other.size() > capacity_full() )
             {
@@ -712,32 +714,26 @@
         auto new_begin = _data._storage + (capacity_full() - other.size()) / 2;
         auto new_end = new_begin + other.size();
         _copy_construct_range( new_begin, new_end, other.begin() );
-        _move_begin( new_begin - begin() );
-        _move_end( new_end - end() );
+        _move_begin( std::distance( begin(), new_begin ) );
+        _move_end( std::distance( end(), new_end ) );
         return *this;
     }
 
     template< typename T, typename Alloc >
     veque<T,Alloc> & veque<T,Alloc>::operator=( veque && other ) noexcept(
-            noexcept(std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value
-            || std::allocator_traits<Alloc>::is_always_equal::value) )
+            noexcept(alloc_traits::propagate_on_container_move_assignment::value
+            || alloc_traits::is_always_equal::value) )
     {
-        if constexpr ( std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value || 
-                       std::allocator_traits<Alloc>::is_always_equal::value )
+        if constexpr ( !alloc_traits::propagate_on_container_move_assignment::value && 
+                       !alloc_traits::is_always_equal::value )
         {
-            _swap_with_allocator( std::move(other) );
-        }
-        else
-        {
-            if ( _allocator() == other._allocator() )
-            {
-                _swap_with_allocator( std::move(other) );
-            }
-            else
+            if ( _allocator() != other._allocator() )
             {
                 _swap_with_allocator( veque( std::move(other), _allocator() ) );
+                return *this;
             }
         }
+        _swap_with_allocator( std::move(other) );
         return *this;
     }
 
@@ -873,7 +869,7 @@
         );
         
         // The allocator's ceiling
-        auto runtime_limit = std::allocator_traits<Alloc>::max_size(_allocator());
+        auto runtime_limit = alloc_traits::max_size(_allocator());
                 
         return std::min( compile_time_limit, runtime_limit );
     }
@@ -1113,7 +1109,7 @@
         {
             _reallocate_space_at_back( size() + 1 );
         }
-        std::allocator_traits<Alloc>::construct( _allocator(), end(), std::forward<Args>(args)... );
+        alloc_traits::construct( _allocator(), end(), std::forward<Args>(args)... );
         _move_end( 1 );
         return back();
     }
@@ -1133,7 +1129,7 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::pop_back()
     {
-        std::allocator_traits<Alloc>::destroy( _allocator(), &back() );
+        alloc_traits::destroy( _allocator(), &back() );
         _move_end( -1 );
     }
 
@@ -1153,7 +1149,7 @@
         {
             _reallocate_space_at_front( size() + 1 );
         }
-        std::allocator_traits<Alloc>::construct( _allocator(), begin()-1, std::forward<Args>(args)... );
+        alloc_traits::construct( _allocator(), begin()-1, std::forward<Args>(args)... );
         _move_begin( -1 );
         return front();
     }
@@ -1173,7 +1169,7 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::pop_front()
     {
-        std::allocator_traits<Alloc>::destroy( _allocator(), &front() );
+        alloc_traits::destroy( _allocator(), &front() );
         _move_begin( 1 );
     }
 
@@ -1190,7 +1186,7 @@
     typename veque<T,Alloc>::iterator veque<T,Alloc>::emplace( const_iterator it, Args && ... args )
     {
         auto res = _insert_storage( it, 1 );
-        std::allocator_traits<Alloc>::construct( _allocator(), res, std::forward<Args>(args)... );
+        alloc_traits::construct( _allocator(), res, std::forward<Args>(args)... );
         return res;
     }
 
@@ -1198,7 +1194,7 @@
     typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( const_iterator it, const T &val )
     {
         auto res = _insert_storage( it, 1 );
-        std::allocator_traits<Alloc>::construct( _allocator(), res, val );
+        alloc_traits::construct( _allocator(), res, val );
         return res;
     }
 
@@ -1206,7 +1202,7 @@
     typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( const_iterator it, T &&val )
     {
         auto res = _insert_storage( it, 1 );
-        std::allocator_traits<Alloc>::construct( _allocator(), res, std::move(val) );
+        alloc_traits::construct( _allocator(), res, std::move(val) );
         return res;
     }
 
@@ -1243,9 +1239,9 @@
     template< typename T, typename Alloc >
     typename veque<T,Alloc>::iterator veque<T,Alloc>::erase( const_iterator first, const_iterator last )
     {
-        auto elements_before = first - begin();
-        auto elements_after = end() - last;
+        auto elements_before = std::distance( cbegin(), first );
         auto count = std::distance( first, last );
+        auto elements_after = std::distance( last, cend() );
         if (  elements_before < elements_after )
         {
             return _shift_back( begin(), first, count );
@@ -1257,11 +1253,11 @@
     }
 
     template< typename T, typename Alloc >
-    void veque<T,Alloc>::swap( veque<T,Alloc> &other ) noexcept(
-            noexcept(std::allocator_traits<Alloc>::propagate_on_container_swap::value
-            || std::allocator_traits<Alloc>::is_always_equal::value))
+    void veque<T,Alloc>::swap( veque<T,Alloc> &other ) noexcept( noexcept(
+            alloc_traits::propagate_on_container_swap::value ||
+            alloc_traits::is_always_equal::value))
     {
-        if constexpr ( std::allocator_traits<Alloc>::propagate_on_container_swap::value )
+        if constexpr ( alloc_traits::propagate_on_container_swap::value )
         {
             _swap_with_allocator( std::move(other) );
         }
