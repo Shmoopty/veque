@@ -1373,7 +1373,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     }
     SECTION( "val,count insertion" )
     {
-        veq.insert( veq.end(), typename TestType::size_type(2), val<typename TestType::value_type,4> );
+        veq.insert( veq.end(), 2, val<typename TestType::value_type,4> );
 
         CHECK( veq.size() == 5 );
         CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,4> } );
@@ -1382,7 +1382,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     SECTION( "val,count resizing insertion" )
     {
         veq.shrink_to_fit();
-        veq.insert( veq.end(), typename TestType::size_type(2), val<typename TestType::value_type,4> );
+        veq.insert( veq.end(), 2, val<typename TestType::value_type,4> );
 
         CHECK( veq.size() == 5 );
         CHECK( veq == TestType{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>, val<typename TestType::value_type,4>, val<typename TestType::value_type,4> } );
@@ -1522,7 +1522,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     SECTION( "count,val assign" )
     {
         TestType veq4;
-        veq4.assign( typename TestType::size_type(3), val<typename TestType::value_type,2> );
+        veq4.assign( 3, val<typename TestType::value_type,2> );
         CHECK( veq4.size() == 3 );
         CHECK( veq4 == TestType{ val<typename TestType::value_type,2>, val<typename TestType::value_type,2>, val<typename TestType::value_type,2> } );
     }

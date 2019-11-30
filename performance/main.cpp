@@ -386,7 +386,7 @@ int arbitrary_insertion_test(int i) {
         }
     }
 }
-
+ 
 // Sample data, each in increasing comparison order
 template<typename T> const T sample;
 template<> const int sample<int> = 99999999;
@@ -396,19 +396,18 @@ template<> const std::vector<int> sample<std::vector<int>> = { 6, 7, 8, 9, 10, 1
 
 
 template< typename Container >
-int iteration_test(int i) {
-    Container v{};
-    for ( int c = 0; c < 200'000; ++c )
-    {
-        v.push_back( sample<typename Container::value_type> );
-    }
+int iteration_test(int i)
+{
+    Container v;
 
-    for (auto && val : v) {
-        auto x = val;
-        
-        for (auto c = reinterpret_cast<char*>(&x); c != reinterpret_cast<char*>(&x) + sizeof(x); ++c ) {
-            i += *c;
-        }
+    for ( i = 0; i != 1'000; ++i )
+    {
+        v.insert( v.end(), 2'000, sample<typename Container::value_type>);
+    }
+    
+    for (auto && val : v)
+    {
+        i += *reinterpret_cast<char*>(&val);
     }
 
     return i;
