@@ -155,6 +155,22 @@ Returns all allocated storage, used and unused.
 
         size_type capacity_full() const noexcept
 
+Ensures sufficient storage for growth after end().  This function behaves identically to `std::vector::reserve`.
+
+        void reserve_back( size_type )
+        
+Ensures sufficient storage for growth before begin().
+
+        void reserve_front( size_type )
+        
+Equivalent to `reserve_front(front); reserve_back(back);`, performing at most one reallocation
+
+        void reserve( size_type front, size_type back );
+
+Ensures sufficient storage for both front and back growth.  Equivalent to `reserve(size,size)`.
+
+        void reserve( size_type size )
+
 All other capacity functions match the behavior, complexity, and exception rules of C++17 `std::vector`
 
         [[nodiscard]] bool empty() const noexcept
@@ -166,10 +182,6 @@ All other capacity functions match the behavior, complexity, and exception rules
         size_type max_size() const noexcept
         
         void reserve( size_type )
-        
-        void reserve_front( size_type )
-        
-        void reserve_back( size_type )
         
         size_type capacity() const noexcept
         
