@@ -125,25 +125,32 @@ int resizing_test(int i) {
     Container v(5);
 
     v.resize(15);
-    
-    auto a = v[0];
-    auto b = v[14];
-
+    auto x = v[0];
+    i += *reinterpret_cast<char*>(&x);
+    v.resize(20);
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
+    v.resize(25);
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
+    v.resize(30);
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
+    v.resize(35);
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
     v.resize(999);
-
-    auto c = v[0];
-    auto d = v[998];
-    
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
     v.resize(0);
-
     v.resize(999);
-
-    v.resize(5);
-
-    auto e = v[0];
-    auto f = v[4];
-    
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
     v.shrink_to_fit();
+    v.resize(5);
+    x = v[0];
+    i += *reinterpret_cast<char*>(&x);
+    return i;
 }
 
 template< typename Container >
