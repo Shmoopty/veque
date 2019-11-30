@@ -1109,7 +1109,7 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::push_back(T &&val)
     {
-        emplace_back( std::forward<T>(val) );
+        emplace_back( std::move(val) );
     }
 
     template< typename T, typename Alloc >
@@ -1149,7 +1149,7 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::push_front(T &&val)
     {
-        emplace_front( std::forward<T>(val) );
+        emplace_front( std::move(val) );
     }
 
     template< typename T, typename Alloc >
