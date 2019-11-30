@@ -100,7 +100,8 @@ struct ThrowingMoveAssignObject {
     std::string data = std::string(1024, 'Y');
 };
 
-struct ThrowingMoveObject {
+struct ThrowingMoveObject
+{
     ThrowingMoveObject() = default;
     ThrowingMoveObject(const ThrowingMoveObject&) = default;
 
@@ -121,7 +122,8 @@ struct ThrowingMoveObject {
 };
 
 template< typename Container >
-int resizing_test(int i) {
+int resizing_test(int i)
+{
     Container v(5);
 
     v.resize(15);
@@ -130,23 +132,22 @@ int resizing_test(int i) {
     v.resize(20);
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
-    v.resize(25);
+    v.resize(25, {});
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
     v.resize(30);
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
-    v.resize(35);
+    v.resize(35, {});
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
     v.resize(999);
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
     v.resize(0);
-    v.resize(999);
+    v.resize(999, {});
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
-    v.shrink_to_fit();
     v.resize(5);
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
@@ -154,7 +155,8 @@ int resizing_test(int i) {
 }
 
 template< typename Container >
-int back_growth_test(int i) {
+int back_growth_test(int i)
+{
     {
         typename Container::size_type size = 5;
         Container v(size);
@@ -200,6 +202,7 @@ int back_growth_test(int i) {
             --size;
         }
     }
+    return i;
 }
 
 template< typename Container >
@@ -392,6 +395,7 @@ int arbitrary_insertion_test(int i) {
             --size;
         }
     }
+    return i;
 }
  
 // Sample data, each in increasing comparison order
@@ -620,7 +624,7 @@ int random_operations_test(int i)
 
 template< template<typename ...Args> typename Container >
 int run_resizing_test(int i) {
-    i += resizing_test < Container<bool> >(i);
+    i += resizing_test<Container<bool> >(i);
     i += resizing_test<Container<int> >(i);
     i += resizing_test<Container<std::string> >(i);
     i += resizing_test<Container<LargeTrivialObject> >(i);
@@ -632,7 +636,7 @@ int run_resizing_test(int i) {
 
 template< template<typename ...Args> typename Container >
 int run_back_growth_test(int i) {
-    i += back_growth_test < Container<bool> >(i);
+    i += back_growth_test<Container<bool> >(i);
     i += back_growth_test<Container<int> >(i);
     i += back_growth_test<Container<std::string> >(i);
     i += back_growth_test<Container<LargeTrivialObject> >(i);
@@ -642,7 +646,7 @@ int run_back_growth_test(int i) {
 
 template< template<typename ...Args> typename Container >
 int run_front_growth_test(int i) {
-    i += front_growth_test < Container<bool> >(i);
+    i += front_growth_test<Container<bool> >(i);
     i += front_growth_test<Container<int> >(i);
     i += front_growth_test<Container<std::string> >(i);
     i += front_growth_test<Container<LargeTrivialObject> >(i);
@@ -652,7 +656,7 @@ int run_front_growth_test(int i) {
 
 template< template<typename ...Args> typename Container >
 int run_arbitrary_insertion_test(int i) {
-    i += arbitrary_insertion_test < Container<bool> >(i);
+    i += arbitrary_insertion_test<Container<bool> >(i);
     i += arbitrary_insertion_test<Container<int> >(i);
     i += arbitrary_insertion_test<Container<std::string> >(i);
     i += arbitrary_insertion_test<Container<LargeTrivialObject> >(i);
@@ -685,33 +689,6 @@ int test(char i, const char * results_name = nullptr ) {
 
     static std::array<std::chrono::steady_clock::duration,6> results;
 
-    auto t1 = std::chrono::steady_clock::now();
-
-    i += run_resizing_test<Container>((int) i);
-    auto t2 = std::chrono::steady_clock::now();
-    results[0] += (t2 - t1);
-
-    i += run_back_growth_test<Container>((int) i);
-    auto t3 = std::chrono::steady_clock::now();
-    results[1] += (t3 - t2);
-
-    i += run_front_growth_test<Container>((int) i);
-    auto t4 = std::chrono::steady_clock::now();
-    results[2] += (t4 - t3);
-
-    i += run_arbitrary_insertion_test<Container>((int) i);
-    auto t5 = std::chrono::steady_clock::now();
-    results[3] += (t5 - t4);
-
-    i += run_iteration_test<Container>((int) i);
-    auto t6 = std::chrono::steady_clock::now();
-    results[4] += (t6 - t5);
-
-    i += run_random_operations_test<Container>((int) i);
-    auto t7 = std::chrono::steady_clock::now();
-    results[5] += (t7 - t6);
-
-    
     if ( results_name )
     {
         std::cout.imbue(std::locale(""));
@@ -725,6 +702,35 @@ int test(char i, const char * results_name = nullptr ) {
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(results.begin(), results.end(), std::chrono::steady_clock::duration{})).count() << " us total time\n";
         
     }
+    else
+    {
+        auto t1 = std::chrono::steady_clock::now();
+
+        i += run_resizing_test<Container>((int) i);
+        auto t2 = std::chrono::steady_clock::now();
+        results[0] += (t2 - t1);
+
+        i += run_back_growth_test<Container>((int) i);
+        auto t3 = std::chrono::steady_clock::now();
+        results[1] += (t3 - t2);
+
+        i += run_front_growth_test<Container>((int) i);
+        auto t4 = std::chrono::steady_clock::now();
+        results[2] += (t4 - t3);
+
+        i += run_arbitrary_insertion_test<Container>((int) i);
+        auto t5 = std::chrono::steady_clock::now();
+        results[3] += (t5 - t4);
+
+        i += run_iteration_test<Container>((int) i);
+        auto t6 = std::chrono::steady_clock::now();
+        results[4] += (t6 - t5);
+
+        i += run_random_operations_test<Container>((int) i);
+        auto t7 = std::chrono::steady_clock::now();
+        results[5] += (t7 - t6);
+    }
+    
     return i;
 }
 
@@ -749,13 +755,17 @@ int main(int argc, char** argv) {
     argc += test<veque>(argv[0][0]);
 
     std::cout << "\ntesting std::deque (3 of 3)\n";
-    argc += test<std::deque>(argv[0][0], "std::deque");
+    argc += test<std::deque>(argv[0][0]);
 
     std::cout << "\ntesting std::vector (3 of 3)\n";
-    argc += test<std::vector>(argv[0][0], "std::vector");
+    argc += test<std::vector>(argv[0][0]);
 
     std::cout << "\ntesting veque (3 of 3)\n";
-    argc += test<veque>(argv[0][0], "veque");
+    argc += test<veque>(argv[0][0]);
+
+    test<std::deque>(argv[0][0], "std::deque");
+    test<std::vector>(argv[0][0], "std::vector");
+    test<veque>(argv[0][0], "veque");
 
     return argc;
 }
