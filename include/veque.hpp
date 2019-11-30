@@ -340,15 +340,17 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::_reallocate_space_at_back( veque<T,Alloc>::size_type count )
     {
-        _reallocate( count * full_realloc::num / full_realloc::den,
-                         count * front_realloc::type::num / front_realloc::type::den );
+        auto allocated = count * full_realloc::num / full_realloc::den;
+        auto offset = count * front_realloc::type::num / front_realloc::type::den;
+        _reallocate( allocated, offset );
     }
 
     template< typename T, typename Alloc >
     void veque<T,Alloc>::_reallocate_space_at_front( veque<T,Alloc>::size_type count )
     {
-        _reallocate( count * full_realloc::num / full_realloc::den,
-                         count - size() + count * front_realloc::type::num / front_realloc::type::den );
+        auto allocated = count * full_realloc::num / full_realloc::den;
+        auto offset = count - size() + count * front_realloc::type::num / front_realloc::type::den;
+        _reallocate( allocated, offset );
     }
 
     template< typename T, typename Alloc >
