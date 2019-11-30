@@ -161,6 +161,11 @@
         // Relative to size, amount of unused space to reserve when reallocating
         using front_realloc = std::ratio<1>;
         using back_realloc = std::ratio<1>;
+        
+        // If true, insert and erase operations are twice the speed of std::vector
+        // If false, veque is a 100% compatible drop-in replacement for
+        // std::vector, regarding iterator invalidation rules
+        static constexpr auto resize_from_closest_side = true;
 
         static_assert( std::ratio_greater_equal_v<front_realloc,std::ratio<0>> );
         static_assert( std::ratio_greater_equal_v<back_realloc,std::ratio<0>> );
@@ -472,7 +477,7 @@
             }
         }
         _destroy( std::max( cbegin(), e - distance ), e );
-        difference_type new_elements_at_front = cbegin() - b + distance;
+        auto new_elements_at_front = static_cast<difference_type>(cbegin() - b + distance);
         auto range_includes_end = (e == end());
 
         // If range includes end(), veque has shrunk
@@ -545,32 +550,35 @@
     {
         auto required_size = size() + count;
         auto can_shift_back = capacity_back() >= required_size && it != begin();
-        auto can_shift_front = capacity_front() >= required_size && it != end();
-
-        if ( can_shift_back && can_shift_front)
+        if constexpr ( resize_from_closest_side )
         {
-            // Capacity allows shifting in either direction.
-            // Remove the choice with the greater operations.
-            auto index = std::distance( cbegin(), it );
-            if ( index <= size() / 2 )
+            auto can_shift_front = capacity_front() >= required_size && it != end();
+
+            if ( can_shift_back && can_shift_front)
             {
-                can_shift_back = false;
+                // Capacity allows shifting in either direction.
+                // Remove the choice with the greater operations.
+                auto index = std::distance( cbegin(), it );
+                if ( index <= size() / 2 )
+                {
+                    can_shift_back = false;
+                }
+                else
+                {
+                    can_shift_front = false;
+                }
             }
-            else
+
+            if ( can_shift_front )
             {
-                can_shift_front = false;
+                // Capacity only allows shifting front.
+                return _shift_front( begin(), it, count );
             }
         }
-        
         if ( can_shift_back )
         {
             // Capacity only allows shifting back.
             return _shift_back( it, end(), count );
-        }
-        if ( can_shift_front )
-        {
-            // Capacity only allows shifting front.
-            return _shift_front( begin(), it, count );
         }
 
         // Insufficient capacity.  Allocate new storage.
@@ -1239,17 +1247,17 @@
     template< typename T, typename Alloc >
     typename veque<T,Alloc>::iterator veque<T,Alloc>::erase( const_iterator first, const_iterator last )
     {
-        auto elements_before = std::distance( cbegin(), first );
         auto count = std::distance( first, last );
-        auto elements_after = std::distance( last, cend() );
-        if (  elements_before < elements_after )
+        if constexpr ( resize_from_closest_side )
         {
-            return _shift_back( begin(), first, count );
+            auto elements_before = std::distance( cbegin(), first );
+            auto elements_after = std::distance( last, cend() );
+            if (  elements_before < elements_after )
+            {
+                return _shift_back( begin(), first, count );
+            }
         }
-        else
-        {
-            return _shift_front( last, end(), count );
-        }
+        return _shift_front( last, end(), count );
     }
 
     template< typename T, typename Alloc >
