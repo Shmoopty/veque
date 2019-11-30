@@ -434,13 +434,14 @@
             else
             {
                 auto src = start;
-                auto dest = src - distance;
-                auto dest_construct_end = std::min( cbegin(), e - distance );
+                auto dest = start - distance;
+                auto dest_construct_end = std::min( begin(), begin() + std::distance(cbegin(),e) - distance );
                 
                 for ( ; dest < dest_construct_end; ++src, ++dest )
                 {
                     _nothrow_move_construct( dest, src );
                 }
+                dest = std::max( dest, dest_construct_end );
                 for ( ; src != e; ++src, ++dest )
                 {
                     _nothrow_move_assign( dest, src );
@@ -1003,9 +1004,9 @@
     {
         if ( count > capacity_front() || count > capacity_back() )
         {
-            auto front_unallocated = std::max( capacity_front(), count ) - size();
-            auto back_unallocated = std::max( capacity_back(), count ) - size();
-            _reallocate( front_unallocated + size() + back_unallocated, front_unallocated );
+            auto allocated_before_begin = std::max( capacity_front(), count ) - size();
+            auto allocated_after_begin = std::max( capacity_back(), count );
+            _reallocate( allocated_before_begin + allocated_after_begin, allocated_before_begin );
         }
     }
 
@@ -1102,23 +1103,13 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::push_back(const T &val)
     {
-        if ( size() == capacity_back() )
-        {
-            _reallocate_space_at_back( size() + 1 );
-        }
-        std::allocator_traits<Alloc>::construct( _allocator(), end(), val );
-        _move_end( 1 );
+        emplace_back( val );
     }
 
     template< typename T, typename Alloc >
     void veque<T,Alloc>::push_back(T &&val)
     {
-        if ( size() == capacity_back() )
-        {
-            _reallocate_space_at_back( size() + 1 );
-        }
-        std::allocator_traits<Alloc>::construct( _allocator(), end(), std::move(val) );
-        _move_end( 1 );
+        emplace_back( std::forward<T>(val) );
     }
 
     template< typename T, typename Alloc >
@@ -1132,8 +1123,7 @@
     T veque<T,Alloc>::pop_back_element()
     {
         auto res( _nothrow_move(back()) );
-        std::allocator_traits<Alloc>::destroy( _allocator(), &back() );
-        _move_end( -1 );
+        pop_back();
         return res;
     }
 
@@ -1153,23 +1143,13 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::push_front(const T &val)
     {
-        if ( size() == capacity_front() )
-        {
-            _reallocate_space_at_front( size() + 1 );
-        }
-        std::allocator_traits<Alloc>::construct( _allocator(), begin()-1, val );
-        _move_begin( -1 );
+        emplace_front( val );
     }
 
     template< typename T, typename Alloc >
     void veque<T,Alloc>::push_front(T &&val)
     {
-        if ( size() == capacity_front() )
-        {
-            _reallocate_space_at_front( size() + 1 );
-        }
-        std::allocator_traits<Alloc>::construct( _allocator(), begin()-1, std::move(val) );
-        _move_begin( -1 );
+        emplace_front( std::forward<T>(val) );
     }
 
     template< typename T, typename Alloc >
@@ -1183,8 +1163,7 @@
     T veque<T,Alloc>::pop_front_element()
     {
         auto res( _nothrow_move(front()) );
-        std::allocator_traits<Alloc>::destroy( _allocator(), &front() );
-        _move_begin( 1 );
+        pop_front();
         return res;
     }
 
