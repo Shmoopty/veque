@@ -158,13 +158,16 @@
             || alloc_traits::is_always_equal::value));
 
     private:
+        
         // Relative to size, amount of unused space to reserve when reallocating
         using front_realloc = std::ratio<1>;
         using back_realloc = std::ratio<1>;
         
-        // If true, insert and erase operations are twice the speed of std::vector
+        // If true, insert and erase operations are twice the speed of
+        //   std::vector, but those operations invalidate all iterators
+        //   
         // If false, veque is a 100% compatible drop-in replacement for
-        // std::vector, regarding iterator invalidation rules
+        //   std::vector including iterator invalidation rules
         static constexpr auto resize_from_closest_side = true;
 
         static_assert( std::ratio_greater_equal_v<front_realloc,std::ratio<0>> );
@@ -172,7 +175,8 @@
         using full_realloc = std::ratio_add<std::ratio<1>,std::ratio_add<front_realloc,back_realloc>>;
 
         size_type _size = 0;    // Number of elements in use
-        size_type _offset = 0;  // Element offset of begin()
+        size_type _offset = 0;  // Number of uninitialized elements before begin()
+        
         struct Data : Allocator // Employing EBO, since the allocator is frequently monostate.
         {
             size_type _allocated = 0;
@@ -302,7 +306,7 @@
     }
 
     template< typename T, typename Alloc >
-    void veque<T,Alloc>::_destroy( const_iterator b, const_iterator e )
+    void veque<T,Alloc>::_destroy( const_iterator const b, const_iterator const e )
     {
         if constexpr ( !std::is_trivially_destructible_v<T> )
         {
@@ -311,6 +315,10 @@
             {
                 alloc_traits::destroy( _allocator(), i );
             }
+        }
+        else
+        {
+            (void)b; (void)e; // Unused
         }
     }
 
@@ -334,7 +342,7 @@
     }
 
     template< typename T, typename Alloc >
-    void veque<T,Alloc>::_swap_with_allocator( veque<T,Alloc> && other ) noexcept
+    void veque<T,Alloc>::_swap_with_allocator( veque && other ) noexcept
     {
         // Swap everything
         std::swap( _size,      other._size );
@@ -343,7 +351,7 @@
     }
 
     template< typename T, typename Alloc >
-    void veque<T,Alloc>::_swap_without_allocator( veque<T,Alloc> && other ) noexcept
+    void veque<T,Alloc>::_swap_without_allocator( veque && other ) noexcept
     {
         // Don't swap _data.allocator().
         std::swap( _size,            other._size );
@@ -409,22 +417,19 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::_nothrow_move_construct_range( iterator b, iterator e, iterator src )
     {
-        if constexpr ( std::is_trivially_copyable_v<T> )
+        auto size = std::distance(b,e);
+        if ( size )
         {
-            std::memcpy( b, src, std::distance(b,e) * sizeof(T) );
-        }
-        else if constexpr ( std::is_nothrow_move_constructible_v<T> )
-        {
-            for ( auto dest = b; dest != e; ++dest, ++src )
+            if constexpr ( std::is_trivially_copyable_v<T> )
             {
-                alloc_traits::construct( _allocator(), dest, std::move(*src) );
+                std::memcpy( b, src, size * sizeof(T) );
             }
-        }
-        else
-        {
-            for ( auto dest = b; dest != e; ++dest, ++src )
+            else
             {
-                alloc_traits::construct( _allocator(), dest, *src );
+                for ( auto dest = b; dest != e; ++dest, ++src )
+                {
+                    _nothrow_move_construct( dest, src );
+                }
             }
         }
     }
@@ -445,7 +450,7 @@
     }
     
     template< typename T, typename Alloc >
-    typename veque<T,Alloc>::iterator veque<T,Alloc>::_shift_front( veque<T,Alloc>::const_iterator b, veque<T,Alloc>::const_iterator e, veque<T,Alloc>::size_type distance )
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::_shift_front( const_iterator b, const_iterator e, size_type distance )
     {
         if ( e == begin() )
         {
@@ -495,7 +500,7 @@
     }
 
     template< typename T, typename Alloc >
-    typename veque<T,Alloc>::iterator veque<T,Alloc>::_shift_back( veque<T,Alloc>::const_iterator b, veque<T,Alloc>::const_iterator e, veque<T,Alloc>::size_type distance )
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::_shift_back( const_iterator b, const_iterator e, size_type distance )
     {
         auto start = _mutable_iterator(b); 
         if ( b == end() )
@@ -546,7 +551,7 @@
     }
 
     template< typename T, typename Alloc >
-    typename veque<T,Alloc>::iterator veque<T,Alloc>::_insert_storage(typename veque<T,Alloc>::const_iterator it, size_type count)
+    typename veque<T,Alloc>::iterator veque<T,Alloc>::_insert_storage( const_iterator it, size_type count )
     {
         auto required_size = size() + count;
         auto can_shift_back = capacity_back() >= required_size && it != begin();
@@ -559,7 +564,7 @@
                 // Capacity allows shifting in either direction.
                 // Remove the choice with the greater operations.
                 auto index = std::distance( cbegin(), it );
-                if ( index <= size() / 2 )
+                if ( index <= ssize() / 2 )
                 {
                     can_shift_back = false;
                 }
@@ -615,7 +620,7 @@
     template< typename T, typename Alloc >
     template< typename InputIt, typename >
     veque<T,Alloc>::veque( InputIt first, InputIt last, const Alloc& alloc )
-        : veque( allocate_uninitialized_tag{}, veque<T,Alloc>::size_type(std::distance(first,last)), alloc )
+        : veque( allocate_uninitialized_tag{}, static_cast<size_type>(std::distance(first,last)), alloc )
     {
         _copy_construct_range( begin(), end(), first );
     }
@@ -706,8 +711,6 @@
                 _swap_with_allocator( veque( other, other._allocator() ) );
                 return *this;
             }
-            // Allocators are equal, but a copy is still demanded.
-            _allocator() = other._allocator();
         }
         else
         {
@@ -917,11 +920,11 @@
             {
                 _reallocate_space_at_back( count );
             }
-            _value_construct_range( end(), begin() + count, args... );
+            _value_construct_range( end(), end() + delta, args... );
         }
         else
         {
-            _destroy( begin() + count, end() );
+            _destroy( end() + delta, end() );
         }
         _move_end( delta );
     }
@@ -1201,17 +1204,13 @@
     template< typename T, typename Alloc >
     typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( const_iterator it, const T &val )
     {
-        auto res = _insert_storage( it, 1 );
-        alloc_traits::construct( _allocator(), res, val );
-        return res;
+        return emplace( it, val );
     }
 
     template< typename T, typename Alloc >
     typename veque<T,Alloc>::iterator veque<T,Alloc>::insert( const_iterator it, T &&val )
     {
-        auto res = _insert_storage( it, 1 );
-        alloc_traits::construct( _allocator(), res, std::move(val) );
-        return res;
+        return emplace( it, std::move(val) );
     }
 
     template< typename T, typename Alloc >
@@ -1284,7 +1283,7 @@
     }
 
     template< typename T, typename Alloc >
-    bool operator==(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator==( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
     {
         if ( lhs.size() != rhs.size() )
         {
@@ -1294,48 +1293,49 @@
     }
 
     template< typename T, typename Alloc >
-    bool operator!=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator!=( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
     {
         return !( lhs == rhs );
     }
 
     template< typename T, typename Alloc >
-    bool operator<(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator<( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
     {
         return std::lexicographical_compare( lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend() );
     }
 
     template< typename T, typename Alloc >
-    bool operator<=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator<=( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
     {
         return !( rhs < lhs );
     }
 
     template< typename T, typename Alloc >
-    bool operator>(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator>( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
     {
         return ( rhs < lhs );
     }
 
     template< typename T, typename Alloc >
-    bool operator>=(const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs)
+    bool operator>=( const veque<T,Alloc> &lhs, const veque<T,Alloc> &rhs )
     {
         return !( lhs < rhs );
     }
 
     template< typename T, typename Alloc >
-    void swap(veque<T,Alloc> & lhs, veque<T,Alloc> & rhs) noexcept(
+    void swap( veque<T,Alloc> & lhs, veque<T,Alloc> & rhs ) noexcept(
         noexcept(std::allocator_traits<Alloc>::propagate_on_container_swap::value
         || std::allocator_traits<Alloc>::is_always_equal::value))
     {
         lhs.swap(rhs);
     }
 
+    // Template deduction guide for iterator pair
     template< typename InputIt,
               typename Alloc = std::allocator<typename std::iterator_traits<InputIt>::value_type>>
     veque(InputIt, InputIt, Alloc = Alloc())
       -> veque<typename std::iterator_traits<InputIt>::value_type, Alloc>;
-
+   
 namespace std
 {
     template< typename T, typename Alloc >

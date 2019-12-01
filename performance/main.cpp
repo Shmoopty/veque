@@ -142,8 +142,6 @@ int resizing_test(int i)
     x = v[0];
     i += *reinterpret_cast<char*>(&x);
     v.resize(999);
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
     v.resize(0);
     v.resize(999, {});
     x = v[0];
@@ -170,6 +168,7 @@ int back_growth_test(int i)
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -185,6 +184,7 @@ int back_growth_test(int i)
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -200,6 +200,7 @@ int back_growth_test(int i)
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
     return i;
@@ -307,6 +308,7 @@ int arbitrary_insertion_test(int i) {
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -323,6 +325,7 @@ int arbitrary_insertion_test(int i) {
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -339,6 +342,7 @@ int arbitrary_insertion_test(int i) {
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -355,6 +359,7 @@ int arbitrary_insertion_test(int i) {
             auto x = v.back();
             v.pop_back();
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -363,7 +368,6 @@ int arbitrary_insertion_test(int i) {
         Container v(size);
 
         for (int i = 0; i < 1'000; ++i) {
-            typename Container::value_type val{};
             v.insert(v.begin() + 2 * v.size() / 3, {});
             ++size;
         }
@@ -371,6 +375,7 @@ int arbitrary_insertion_test(int i) {
             auto x = v.front();
             v.erase(v.begin());
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
 
@@ -393,6 +398,7 @@ int arbitrary_insertion_test(int i) {
             auto x = v.front();
             v.erase(v.begin());
             --size;
+            i += *reinterpret_cast<char*>(&x);
         }
     }
     return i;
@@ -431,25 +437,21 @@ template<> const int val<int,1> = 1;
 template<> const int val<int,2> = 2;
 template<> const int val<int,3> = 3;
 template<> const int val<int,4> = 4;
-template<> const int val<int,5> = 5;
 template<> const std::string val<std::string,0> = std::string(100, 'A');
 template<> const std::string val<std::string,1> = std::string(200, 'B');
 template<> const std::string val<std::string,2> = std::string(300, 'C');
 template<> const std::string val<std::string,3> = std::string(400, 'D');
 template<> const std::string val<std::string,4> = std::string(500, 'E');
-template<> const std::string val<std::string,5> = std::string(600, 'F');
 template<> const double val<double,0> = 00.0;
 template<> const double val<double,1> = 11.0;
 template<> const double val<double,2> = 22.0;
 template<> const double val<double,3> = 33.0;
 template<> const double val<double,4> = 44.0;
-template<> const double val<double,5> = 55.0;
 template<> const std::vector<int> val<std::vector<int>,0> = { 0, 1, 2 };
 template<> const std::vector<int> val<std::vector<int>,1> = { 1, 2, 3 };
 template<> const std::vector<int> val<std::vector<int>,2> = { 2, 3, 4 };
 template<> const std::vector<int> val<std::vector<int>,3> = { 3, 4, 5 };
 template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
-template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 template< typename Container >
 int random_operations_test(int i)
@@ -483,7 +485,7 @@ int random_operations_test(int i)
             {
                 auto index = rand() % veq.size();
                 auto x = veq.at(index);
-                i += *reinterpret_cast<char*>(&i);
+                i += *reinterpret_cast<char*>(&x);
             }
         },
         [&]
@@ -492,7 +494,7 @@ int random_operations_test(int i)
             {
                 auto index = rand() % veq.size();
                 auto x = veq[index];
-                i += *reinterpret_cast<char*>(&i);
+                i += *reinterpret_cast<char*>(&x);
             }
         },
         [&]
@@ -500,7 +502,7 @@ int random_operations_test(int i)
             if ( veq.size() )
             {
                 auto x = veq.front();
-                i += *reinterpret_cast<char*>(&i);
+                i += *reinterpret_cast<char*>(&x);
             }
         },
         [&]
@@ -508,7 +510,7 @@ int random_operations_test(int i)
             if ( veq.size() )
             {
                 auto x = veq.back();
-                i += *reinterpret_cast<char*>(&i);
+                i += *reinterpret_cast<char*>(&x);
             }
         },
         [&]
@@ -548,9 +550,10 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                auto item = val<typename Container::value_type,3>;
+                auto x = val<typename Container::value_type,0>;
                 auto index = rand() % veq.size();
                 veq.emplace( veq.begin() + index );
+                i += *reinterpret_cast<char*>(&x);
             }
         },
         [&]
