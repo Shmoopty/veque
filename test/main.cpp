@@ -532,7 +532,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veques can be modified at either end with strong ex
             auto v_before = v;
             try
             {
-                typename TestType::value_type val;
+                typename TestType::value_type val{};
                 v.push_back( val );
                 REQUIRE( ++size == v.size() );
             }
@@ -569,7 +569,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veques can be modified at either end with strong ex
             auto v_before = v;
             try
             {
-                typename TestType::value_type val;
+                typename TestType::value_type val{};
                 v.push_front( val );
                 REQUIRE( ++size == v.size() );
             }
@@ -772,7 +772,6 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
         [&]
         {
             INFO( "emplace" );
-            auto item = val<typename TestType::value_type,3>;
             auto index = veq.size() ? rand() % veq.size() : 0;
             veq.emplace( veq.begin() + index );
             vec.emplace( vec.begin() + index );
@@ -1024,7 +1023,6 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", 
         [&]
         {
             INFO( "emplace" );
-            auto item = val<typename TestType::value_type,3>;
             auto index = veq.size() ? rand() % veq.size() : 0;
             veq.emplace( veq.begin() + index );
             deq.emplace( deq.begin() + index );
