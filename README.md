@@ -40,7 +40,7 @@ _Strong exception guarantee pop-and-return, courtesy C++17:_
 * `pop_back_element()`
 * `pop_front_element()`
 
-_Modern stuff:_
+_In the spirit of C++20, it is reasonable to ask for the size as a signed type:_
 * `ssize()`
 
 ### Tradeoffs
