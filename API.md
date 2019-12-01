@@ -143,23 +143,23 @@ All iterator functions match the behavior, complexity, and exception rules of [C
 
 ### Capacity
 
-Returns current size + unused allocated storage before front().  Can be used to determine if adding elements at begin() will trigger a reallocation.
+Returns current size + unused allocated storage before front().  Can be used to determine if adding elements at begin() will trigger a reallocation
 
         size_type capacity_front() const noexcept
 
-Returns current size + unused allocated storage after back().  Can be used to determine if adding elements at end() will trigger a reallocation.  This function behaves identically to `capacity()`.
+Returns current size + unused allocated storage after back().  Can be used to determine if adding elements at end() will trigger a reallocation.  This function behaves identically to `capacity()`
 
         size_type capacity_back() const noexcept
 
-Returns all allocated storage, used and unused.
+Returns all allocated storage, used and unused
 
         size_type capacity_full() const noexcept
 
-Ensures sufficient storage for growth after end().  This function behaves identically to `std::vector::reserve`.
+Ensures sufficient storage for growth after end().  This function behaves identically to `std::vector::reserve`
 
         void reserve_back( size_type )
         
-Ensures sufficient storage for growth before begin().
+Ensures sufficient storage for growth before begin()
 
         void reserve_front( size_type )
         
@@ -167,17 +167,19 @@ Equivalent to `reserve_front(front); reserve_back(back);`, performing at most on
 
         void reserve( size_type front, size_type back );
 
-Ensures sufficient storage for both front and back growth.  Equivalent to `reserve(size,size)`.
+Ensures sufficient storage for both front and back growth.  Equivalent to `reserve(size,size)`
 
         void reserve( size_type size )
+
+Returns the size as a signed integer type
+
+        ssize_type ssize() const noexcept
 
 All other capacity functions match the behavior, complexity, and exception rules of C++17 `std::vector`
 
         [[nodiscard]] bool empty() const noexcept
         
         size_type size() const noexcept
-        
-        ssize_type ssize() const noexcept
         
         size_type max_size() const noexcept
         
@@ -189,11 +191,11 @@ All other capacity functions match the behavior, complexity, and exception rules
 
 ### Modifiers
 
-Pops and returns back element.  Strong exception safety guaranteed.  Moves element when appropriate.
+Pops and returns back element.  Strong exception safety guaranteed.  Moves element when appropriate
 
         T pop_back_element()
 
-Pops and returns front element.  Strong exception safety guaranteed.  Moves element when appropriate.
+Pops and returns front element.  Strong exception safety guaranteed.  Moves element when appropriate
 
         T pop_front_element()
         
@@ -203,13 +205,13 @@ Resizes the veque, by adding or removing from the front.
 
         void resize_front( size_type, const T & )
 
-Resizes the veque, by adding or removing from the back.  This function behaves identically to `resize()`.
+Resizes the veque, by adding or removing from the back.  This function behaves identically to `resize()`
 
         void resize_back( size_type )
         
         void resize_back( size_type, const T & )
         
-Adds a new element to the front of the veque.
+Adds a new element to the front of the veque
 
         void push_front( const T & )
         
@@ -218,7 +220,7 @@ Adds a new element to the front of the veque.
         template <class ... Args> reference
         emplace_front( Args && ... args )
 
-Removes element at front of the veque.
+Removes element at front of the veque
 
         void pop_front()
 
