@@ -7,32 +7,34 @@
  * SAMPLE OUTPUT (g++-9)
 
 std::deque results:
-     8,216 us resizing time
-    20,018 us back growth time
-    18,418 us front growth time
-   870,060 us arbitrary insertion time
-   137,786 us iteration time
-   528,697 us cache thrashing time
- 1,583,197 us total time
+   502,088 us resizing time
+   348,253 us back growth time
+    19,299 us front growth time
+   932,011 us arbitrary insertion time
+   285,542 us iteration time
+   539,452 us cache thrashing time
+ 1,456,559 us reassignment time
+ 4,083,208 us total time
 
 std::vector results:
-     3,579 us resizing time
-    34,091 us back growth time
- 6,288,065 us front growth time
- 1,025,089 us arbitrary insertion time
-   116,620 us iteration time
-   510,204 us cache thrashing time
- 7,977,650 us total time
+   217,627 us resizing time
+   745,331 us back growth time
+ 6,916,795 us front growth time
+ 1,108,077 us arbitrary insertion time
+   180,263 us iteration time
+   449,901 us cache thrashing time
+ 1,393,661 us reassignment time
+11,011,659 us total time
 
 veque results:
-     3,142 us resizing time
-    31,221 us back growth time
-    28,404 us front growth time
-   392,247 us arbitrary insertion time
-   107,642 us iteration time
-   291,009 us cache thrashing time
-   853,669 us total time
-
+   176,656 us resizing time
+   600,655 us back growth time
+    31,510 us front growth time
+   538,941 us arbitrary insertion time
+   185,953 us iteration time
+   262,112 us cache thrashing time
+ 1,120,177 us reassignment time
+ 2,916,006 us total time
 
  */
 
@@ -122,107 +124,150 @@ struct ThrowingMoveObject
 };
 
 template< typename Container >
+int reassignment_test(int i)
+{
+    // Valgrind doesn't like std::random_device.
+    //std::random_device rd;
+    //std::mt19937 gen(rd());
+    srand(time(NULL));
+    for ( int x = 0; x < 3'000; ++x )
+    {
+        auto v1 = Container( rand() % 100 );
+        auto v2 = Container( rand() % 100 );
+        auto v3 = Container( rand() % 100 );
+        v1 = v2;
+        v3 = std::move(v2);
+        i += *reinterpret_cast<char*>(&v1);
+    }
+
+    for ( int x = 0; x < 3'000; ++x )
+    {
+        auto v1 = Container( rand() % 100 );
+        auto v2 = Container( rand() % 100 );
+        auto v3 = Container( rand() % 100 );
+        v1.assign( v2.begin(), v2.end() );
+        i += *reinterpret_cast<char*>(&v1);
+    }
+    return i;
+}
+
+template< typename Container >
 int resizing_test(int i)
 {
-    Container v(5);
+    using ValType = typename Container::value_type;
+    
+    for ( int y = 0; y != 100; ++y )
+    {
+        Container v(5);
 
-    v.resize(15);
-    auto x = v[0];
-    i += *reinterpret_cast<char*>(&x);
-    v.resize(20);
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
-    v.resize(25, {});
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
-    v.resize(30);
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
-    v.resize(35, {});
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
-    v.resize(999);
-    v.resize(0);
-    v.resize(999, {});
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
-    v.resize(5);
-    x = v[0];
-    i += *reinterpret_cast<char*>(&x);
+        v.resize(15);
+        ValType x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(20);
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(25, ValType{});
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(30);
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(35, ValType{});
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(999);
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(0);
+        v.resize(999, ValType{});
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+        v.resize(5);
+        x = v[0];
+        i += *reinterpret_cast<char*>(&x);
+    }
     return i;
 }
 
 template< typename Container >
 int back_growth_test(int i)
 {
+    using ValType = typename Container::value_type;
+    
+    for ( int y = 0; y != 20; ++y )
     {
-        typename Container::size_type size = 5;
-        Container v(size);
+        {
+            typename Container::size_type size = 5;
+            Container v(size);
 
-        typename Container::value_type val{};
-        for (int i = 0; i < 2'000; ++i) {
-            v.push_back(val);
-            ++size;
+            ValType val{};
+            for (int i = 0; i < 2'000; ++i) {
+                v.push_back(val);
+                ++size;
+            }
+            while (v.size()) {
+                ValType x = v.back();
+                v.pop_back();
+                --size;
+                i += *reinterpret_cast<char*>(&x);
+            }
         }
-        while (v.size()) {
-            auto x = v.back();
-            v.pop_back();
-            --size;
-            i += *reinterpret_cast<char*>(&x);
+
+        {
+            typename Container::size_type size = 5;
+            Container v(size);
+
+            for (int i = 0; i < 2'000; ++i) {
+                v.push_back(ValType{});
+                ++size;
+            }
+            while (v.size()) {
+                ValType x = v.back();
+                v.pop_back();
+                --size;
+                i += *reinterpret_cast<char*>(&x);
+            }
+        }
+
+        {
+            typename Container::size_type size = 5;
+            Container v(size);
+
+            for (int i = 0; i < 2'000; ++i) {
+                v.emplace_back();
+                ++size;
+            }
+            while (v.size()) {
+                ValType x = v.back();
+                v.pop_back();
+                --size;
+                i += *reinterpret_cast<char*>(&x);
+            }
         }
     }
-
-    {
-        typename Container::size_type size = 5;
-        Container v(size);
-
-        for (int i = 0; i < 2'000; ++i) {
-            v.push_back(typename Container::value_type{});
-            ++size;
-        }
-        while (v.size()) {
-            auto x = v.back();
-            v.pop_back();
-            --size;
-            i += *reinterpret_cast<char*>(&x);
-        }
-    }
-
-    {
-        typename Container::size_type size = 5;
-        Container v(size);
-
-        for (int i = 0; i < 2'000; ++i) {
-            v.emplace_back();
-            ++size;
-        }
-        while (v.size()) {
-            auto x = v.back();
-            v.pop_back();
-            --size;
-            i += *reinterpret_cast<char*>(&x);
-        }
-    }
+    
     return i;
 }
 
 template< typename Container >
-int front_growth_test(int i) {
-
+int front_growth_test(int i)
+{
+    using ValType = typename Container::value_type;
+    
     {
         typename Container::size_type size = 5;
         Container v(size);
 
-        typename Container::value_type val{};
+        ValType val{};
         for (int i = 0; i < 2'000; ++i) {
-            if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>>)
+            if constexpr( std::is_same_v<Container, std::vector<ValType>>)
                 v.insert(v.begin(), val);
             else
                 v.push_front(val);
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
+            ValType x = v.back();
             v.pop_back();
             i += *reinterpret_cast<char*>(&x);
             --size;
@@ -235,22 +280,22 @@ int front_growth_test(int i) {
         Container v(size);
 
         for (int i = 0; i < 2'000; ++i) {
-            if constexpr( std::is_same_v<Container, std::vector < typename Container::value_type>>)
-                v.insert(v.begin(), typename Container::value_type{});
+            if constexpr( std::is_same_v<Container, std::vector < ValType>>)
+                v.insert(v.begin(), ValType{});
             else
-                v.push_front(typename Container::value_type{});
+                v.push_front(ValType{});
             ++size;
         }
         while (v.size()) {
-            if constexpr( std::is_same_v<Container, veque<typename Container::value_type>>)
+            if constexpr( std::is_same_v<Container, veque<ValType>>)
             {
-                auto x = v.pop_back_element();
+                ValType x = v.pop_back_element();
                 i += *reinterpret_cast<char*>(&x);
             }
             else
             {
                 // Closest functionality match
-                auto x = v.back();
+                ValType x = v.back();
                 v.pop_back();
                 i += *reinterpret_cast<char*>(&x);
             }
@@ -263,28 +308,28 @@ int front_growth_test(int i) {
         Container v(size);
 
         for (int i = 0; i < 2'000; ++i) {
-            if constexpr( std::is_same_v<Container, std::vector < typename Container::value_type>>)
+            if constexpr( std::is_same_v<Container, std::vector < ValType>>)
                 v.emplace(v.begin());
             else
                 v.emplace_front();
             ++size;
         }
         while (v.size()) {
-            if constexpr( std::is_same_v<Container, veque<typename Container::value_type>>)
+            if constexpr( std::is_same_v<Container, veque<ValType>>)
             {
-                auto x = v.pop_front_element();
+                ValType x = v.pop_front_element();
                 i += *reinterpret_cast<char*>(&x);
             }
-            else if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>>)
+            else if constexpr( std::is_same_v<Container, std::vector<ValType>>)
             {
-                auto x = v.front();
+                ValType x = v.front();
                 v.erase( v.begin() );
                 i += *reinterpret_cast<char*>(&x);
             }
             else
             {
                 // Closest functionality match
-                auto x = v.front();
+                ValType x = v.front();
                 v.pop_front();
                 i += *reinterpret_cast<char*>(&x);
             }
@@ -294,18 +339,21 @@ int front_growth_test(int i) {
 }
 
 template< typename Container >
-int arbitrary_insertion_test(int i) {
+int arbitrary_insertion_test(int i)
+{
+    using ValType = typename Container::value_type;
+    
     {
         typename Container::size_type size = 5;
         Container v(size);
 
         for (int i = 0; i < 1'000; ++i) {
-            typename Container::value_type val{};
+            ValType val{};
             v.insert(v.begin(), val);
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
+            ValType x = v.back();
             v.pop_back();
             --size;
             i += *reinterpret_cast<char*>(&x);
@@ -317,12 +365,12 @@ int arbitrary_insertion_test(int i) {
         Container v(size);
 
         for (int i = 0; i < 1'000; ++i) {
-            typename Container::value_type val{};
+            ValType val{};
             v.insert(v.end(), val);
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
+            ValType x = v.back();
             v.pop_back();
             --size;
             i += *reinterpret_cast<char*>(&x);
@@ -334,12 +382,12 @@ int arbitrary_insertion_test(int i) {
         Container v(size);
 
         for (int i = 0; i < 1'000; ++i) {
-            typename Container::value_type val{};
+            ValType val{};
             v.insert(v.begin() + v.size() / 2, val);
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
+            ValType x = v.back();
             v.pop_back();
             --size;
             i += *reinterpret_cast<char*>(&x);
@@ -351,12 +399,12 @@ int arbitrary_insertion_test(int i) {
         Container v(size);
 
         for (int i = 0; i < 1'000; ++i) {
-            typename Container::value_type val{};
+            ValType val{};
             v.insert(v.begin() + v.size() / 3, val);
             ++size;
         }
         while (v.size()) {
-            auto x = v.back();
+            ValType x = v.back();
             v.pop_back();
             --size;
             i += *reinterpret_cast<char*>(&x);
@@ -372,7 +420,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
-            auto x = v.front();
+            ValType x = v.front();
             v.erase(v.begin());
             --size;
             i += *reinterpret_cast<char*>(&x);
@@ -387,7 +435,7 @@ int arbitrary_insertion_test(int i) {
         //std::random_device rd;
         //std::mt19937 gen(rd());
         for (int i = 0; i < 1'000; ++i) {
-            typename Container::value_type val{};
+            ValType val{};
             //auto index = std::uniform_int_distribution<>(0, v.size())(gen);
             auto index = rand() % (v.size() + 1);
             //v.insert( v.begin() + dis(gen), val );
@@ -395,7 +443,7 @@ int arbitrary_insertion_test(int i) {
             ++size;
         }
         while (v.size()) {
-            auto x = v.front();
+            ValType x = v.front();
             v.erase(v.begin());
             --size;
             i += *reinterpret_cast<char*>(&x);
@@ -415,16 +463,13 @@ template<> const std::vector<int> sample<std::vector<int>> = { 6, 7, 8, 9, 10, 1
 template< typename Container >
 int iteration_test(int i)
 {
-    Container v;
-
-    for ( i = 0; i != 1'000; ++i )
-    {
-        v.insert( v.end(), 2'000, sample<typename Container::value_type>);
-    }
+    using ValType = typename Container::value_type;
     
-    for (auto && val : v)
+    Container v(2'000'000);
+   
+    for (const ValType & val : v)
     {
-        i += *reinterpret_cast<char*>(&val);
+        i += *reinterpret_cast<const char*>(&val);
     }
 
     return i;
@@ -456,6 +501,8 @@ template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template< typename Container >
 int random_operations_test(int i)
 {
+    using ValType = typename Container::value_type;
+    
     Container veq;
 
     srand(time(NULL));
@@ -484,7 +531,7 @@ int random_operations_test(int i)
             if ( veq.size() )
             {
                 auto index = rand() % veq.size();
-                auto x = veq.at(index);
+                ValType x = veq.at(index);
                 i += *reinterpret_cast<char*>(&x);
             }
         },
@@ -493,7 +540,7 @@ int random_operations_test(int i)
             if ( veq.size() )
             {
                 auto index = rand() % veq.size();
-                auto x = veq[index];
+                ValType x = veq[index];
                 i += *reinterpret_cast<char*>(&x);
             }
         },
@@ -501,7 +548,7 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                auto x = veq.front();
+                ValType x = veq.front();
                 i += *reinterpret_cast<char*>(&x);
             }
         },
@@ -509,7 +556,7 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                auto x = veq.back();
+                ValType x = veq.back();
                 i += *reinterpret_cast<char*>(&x);
             }
         },
@@ -519,20 +566,20 @@ int random_operations_test(int i)
         },
         [&]
         {
-            auto item = val<typename Container::value_type,1>;
-            veq.push_back( typename Container::value_type{item} );
+            ValType item = val<ValType,1>;
+            veq.push_back( ValType{item} );
             i += *reinterpret_cast<char*>(&item);
         },
         [&]
         {
-            auto item = val<typename Container::value_type,4>;
-            veq.emplace_back( typename Container::value_type{item} );
+            ValType item = val<ValType,4>;
+            veq.emplace_back( ValType{item} );
         },
         [&]
         {
             if ( veq.size() )
             {
-                auto item = val<typename Container::value_type,2>;
+                ValType item = val<ValType,2>;
                 auto index = rand() % veq.size();
                 veq.insert( veq.begin() + index, item );
             }
@@ -541,16 +588,16 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                auto item = val<typename Container::value_type,3>;
+                ValType item = val<ValType,3>;
                 auto index = rand() % veq.size();
-                veq.insert( veq.begin() + index, typename Container::value_type{item} );
+                veq.insert( veq.begin() + index, ValType{item} );
             }
         },
         [&]
         {
             if ( veq.size() )
             {
-                auto x = val<typename Container::value_type,0>;
+                ValType x = val<ValType,0>;
                 auto index = rand() % veq.size();
                 veq.emplace( veq.begin() + index );
                 i += *reinterpret_cast<char*>(&x);
@@ -560,7 +607,7 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                auto x = *veq.begin();
+                ValType x = *veq.begin();
                 i += *reinterpret_cast<char*>(&x);
             }
         },
@@ -568,7 +615,7 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                auto x = *veq.rbegin();
+                ValType x = *veq.rbegin();
                 i += *reinterpret_cast<char*>(&x);
             }
         },
@@ -580,20 +627,20 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                if constexpr( std::is_same_v<Container, veque<typename Container::value_type>> )
+                if constexpr( std::is_same_v<Container, veque<ValType>> )
                 {
-                    auto x = veq.pop_front_element();
+                    ValType x = veq.pop_front_element();
                     i += *reinterpret_cast<char*>(&x);
                 }
-                else if constexpr( std::is_same_v<Container, std::vector<typename Container::value_type>> )
+                else if constexpr( std::is_same_v<Container, std::vector<ValType>> )
                 {
-                    auto x = veq.front();
+                    ValType x = veq.front();
                     veq.erase( veq.begin() );
                     i += *reinterpret_cast<char*>(&x);
                 }
                 else
                 {
-                    auto x = veq.front();
+                    ValType x = veq.front();
                     veq.pop_front();
                     i += *reinterpret_cast<char*>(&x);
                 }
@@ -603,14 +650,14 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                if constexpr( std::is_same_v<Container, veque<typename Container::value_type>> )
+                if constexpr( std::is_same_v<Container, veque<ValType>> )
                 {
-                    auto x = veq.pop_back_element();
+                    ValType x = veq.pop_back_element();
                     i += *reinterpret_cast<char*>(&x);
                 }
                 else
                 {
-                    auto x = veq.back();
+                    ValType x = veq.back();
                     veq.pop_back();
                     i += *reinterpret_cast<char*>(&x);
                 }
@@ -634,6 +681,18 @@ int run_resizing_test(int i) {
     i += resizing_test<Container<NonTrivialObject> >(i);
     i += resizing_test<Container<ThrowingMoveConstructObject> >(i);
     i += resizing_test<Container<ThrowingMoveObject> >(i);
+    return i;
+}
+
+template< template<typename ...Args> typename Container >
+int run_reassignment_test(int i) {
+    i += reassignment_test<Container<bool> >(i);
+    i += reassignment_test<Container<int> >(i);
+    i += reassignment_test<Container<std::string> >(i);
+    i += reassignment_test<Container<LargeTrivialObject> >(i);
+    i += reassignment_test<Container<NonTrivialObject> >(i);
+    i += reassignment_test<Container<ThrowingMoveConstructObject> >(i);
+    i += reassignment_test<Container<ThrowingMoveObject> >(i);
     return i;
 }
 
@@ -690,7 +749,7 @@ int run_random_operations_test(int i) {
 template< template<typename ...Args> typename Container >
 int test(char i, const char * results_name = nullptr ) {
 
-    static std::array<std::chrono::steady_clock::duration,6> results;
+    static std::array<std::chrono::steady_clock::duration,7> results;
 
     if ( results_name )
     {
@@ -702,6 +761,7 @@ int test(char i, const char * results_name = nullptr ) {
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary insertion time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[4]).count() << " us iteration time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[5]).count() << " us cache thrashing time\n";
+        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[6]).count() << " us reassignment time\n";
         std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(results.begin(), results.end(), std::chrono::steady_clock::duration{})).count() << " us total time\n";
         
     }
@@ -732,6 +792,10 @@ int test(char i, const char * results_name = nullptr ) {
         i += run_random_operations_test<Container>((int) i);
         auto t7 = std::chrono::steady_clock::now();
         results[5] += (t7 - t6);
+
+        i += run_reassignment_test<Container>((int) i);
+        auto t8 = std::chrono::steady_clock::now();
+        results[6] += (t8 - t7);
     }
     
     return i;

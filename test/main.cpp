@@ -646,6 +646,33 @@ template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 
+TEMPLATE_PRODUCT_TEST_CASE( "reassignment", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double, std::vector<int> ) )
+{
+    // Valgrind doesn't like std::random_device.
+    //std::random_device rd;
+    //std::mt19937 gen(rd());
+    srand(time(NULL));
+    for ( int i = 0; i < 10'000; ++i )
+    {
+        auto v1 = TestType( rand() % 100, val<typename TestType::value_type,4> );
+        auto v2 = TestType( rand() % 100, val<typename TestType::value_type,5> );
+        auto v3 = TestType( rand() % 100, val<typename TestType::value_type,5> );
+        v1 = v2;
+        REQUIRE( v1 == v2 );
+        v3 = std::move(v2);
+        REQUIRE( v1 == v3 );
+    }
+
+    for ( int i = 0; i < 10'000; ++i )
+    {
+        auto v1 = TestType( rand() % 100, val<typename TestType::value_type,4> );
+        auto v2 = TestType( rand() % 100, val<typename TestType::value_type,5> );
+        auto v3 = TestType( rand() % 100, val<typename TestType::value_type,5> );
+        v1.assign( v2.begin(), v2.end() );
+        REQUIRE( v1 == v2 );
+    }
+}
+
 TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque), (int, std::string, double, std::vector<int> ) )
 {
     using VectorType = std::vector<typename TestType::value_type, typename TestType::allocator_type>;
