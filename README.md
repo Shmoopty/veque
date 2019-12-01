@@ -49,5 +49,13 @@ Is **veque** better than `std::vector` in every conceivable way?  No.  But the t
 * `insert()` and `erase()` function calls should be assumed to invalidate all iterators and references, since the resizing could happen from either direction.  By comparison, the same `std::vector` and `std::deque` operations will sometimes only invalidate *some* of the iterators and references.
 * `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
 
+### Why "veque"?
+
+As a developer, I am not good at naming things.
+
+`double_ended_vector`?
+
+`deqstor`?
+
 ### To do:
 * Perhaps C++14 support?
