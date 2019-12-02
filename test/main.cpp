@@ -68,21 +68,23 @@ struct StatefulAllocator
     using propagate_on_container_swap = std::false_type;
 };
 
+// An allocator that expects to propagate to other containers
 template<typename T>
-struct PropogatingStatefulAllocator : StatefulAllocator<T>
+struct PropagatingStatefulAllocator : StatefulAllocator<T>
 {
-    PropogatingStatefulAllocator() = default;
-    constexpr PropogatingStatefulAllocator(const PropogatingStatefulAllocator<T> &) = default;
-    constexpr PropogatingStatefulAllocator(PropogatingStatefulAllocator<T> &&) = default;
+    PropagatingStatefulAllocator() = default;
+    constexpr PropagatingStatefulAllocator(const PropagatingStatefulAllocator<T> &) = default;
+    constexpr PropagatingStatefulAllocator(PropagatingStatefulAllocator<T> &&) = default;
     template< class U >
-    PropogatingStatefulAllocator( const PropogatingStatefulAllocator<U>& other ) noexcept : StatefulAllocator<T>{other} {}
-    constexpr PropogatingStatefulAllocator& operator=(const PropogatingStatefulAllocator<T> &o) = default;
-    constexpr PropogatingStatefulAllocator& operator=(PropogatingStatefulAllocator<T> &&o) = default;
+    PropagatingStatefulAllocator( const PropagatingStatefulAllocator<U>& other ) noexcept : StatefulAllocator<T>{other} {}
+    constexpr PropagatingStatefulAllocator& operator=(const PropagatingStatefulAllocator<T> &o) = default;
+    constexpr PropagatingStatefulAllocator& operator=(PropagatingStatefulAllocator<T> &&o) = default;
     using propagate_on_container_copy_assignment = std::true_type;
     using propagate_on_container_move_assignment = std::true_type;
     using propagate_on_container_swap = std::true_type;
 };
 
+// An allocator with construct/destroy members that must always be called.
 template<typename T>
 struct CountingAllocator
 {
@@ -235,10 +237,13 @@ template<typename T>
 using GrumpyVeque = veque<T,StatefulAllocator<T>>;
 
 template<typename T>
-using PropogatingGrumpyVeque = veque<T,PropogatingStatefulAllocator<T>>;
+using PropogatingGrumpyVeque = veque<T,PropagatingStatefulAllocator<T>>;
 
 template<typename T>
 using AllocCountingVeque = veque<T,CountingAllocator<T>>;
+
+template<typename Container>
+constexpr bool is_using_counting_allocator = std::is_same_v< typename Container::allocator_type, CountingAllocator<typename Container::value_type> >;
 
 TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject) )
 {
@@ -280,7 +285,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template
             TestType( v ).swap( v );
 
             REQUIRE( v.capacity() == 5 );
-            if constexpr( std::is_same_v< typename TestType::allocator_type, CountingAllocator<typename TestType::value_type> > )
+            if constexpr( is_using_counting_allocator<TestType> )
             {
                 REQUIRE( v.get_allocator().counter == 5 );
             }
@@ -293,7 +298,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template
 
             CHECK( v.size() == 5 );
             CHECK( v.capacity() == 5 );
-            if constexpr( std::is_same_v< typename TestType::allocator_type, CountingAllocator<typename TestType::value_type> > )
+            if constexpr( is_using_counting_allocator<TestType> )
             {
                 REQUIRE( v.get_allocator().counter == 5 );
             }
@@ -448,7 +453,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
             REQUIRE( v.size() == size );
             REQUIRE( v.capacity() >= size );
         }
-        if constexpr( std::is_same_v< typename TestType::allocator_type, CountingAllocator<typename TestType::value_type> > )
+        if constexpr( is_using_counting_allocator<TestType> )
         {
             REQUIRE( v.get_allocator().counter == 2'005 );
         }
@@ -461,7 +466,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
         }
         REQUIRE( 0 == size );
         REQUIRE( v.empty() );
-        if constexpr( std::is_same_v< typename TestType::allocator_type, CountingAllocator<typename TestType::value_type> > )
+        if constexpr( is_using_counting_allocator<TestType> )
         {
             REQUIRE( v.get_allocator().counter == 0 );
         }
@@ -536,7 +541,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
             REQUIRE( v.size() == size );
             REQUIRE( v.capacity() >= size );
         }
-        if constexpr( std::is_same_v< typename TestType::allocator_type, CountingAllocator<typename TestType::value_type> > )
+        if constexpr( is_using_counting_allocator<TestType> )
         {
             REQUIRE( v.get_allocator().counter == 2'005 );
         }
@@ -549,7 +554,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
         }
         REQUIRE( 0 == size );
         REQUIRE( v.empty() );
-        if constexpr( std::is_same_v< typename TestType::allocator_type, CountingAllocator<typename TestType::value_type> > )
+        if constexpr( is_using_counting_allocator<TestType> )
         {
             REQUIRE( v.get_allocator().counter == 0 );
         }
@@ -570,6 +575,10 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
             ++size;
             REQUIRE( v.size() == size );
             REQUIRE( v.capacity() >= size );
+        }
+        if constexpr( is_using_counting_allocator<TestType> )
+        {
+            REQUIRE( v.get_allocator().counter == 2'005 );
         }
         while ( v.size() )
         {
@@ -1392,6 +1401,11 @@ TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][templa
 
     CHECK( veq1 == veq2 );
     CHECK( !(veq1 != veq2) );
+    
+    if constexpr( is_using_counting_allocator<TestType> )
+    {
+        REQUIRE( veq1.get_allocator().counter == 6 );
+    }
 }
 
 TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )

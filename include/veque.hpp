@@ -200,15 +200,15 @@
             decltype(std::declval<Alloc&>().destroy(std::declval<T*>()))
         > > : std::false_type {};
         
-        // Confirmation that allocator_traits will directly call placement new(ptr)T()
+        // Confirmation that allocator_traits will only directly call placement new(ptr)T()
         static constexpr auto calls_default_constructor_directly = 
             std::is_same_v<void,std::allocator<T>> ||
             has_no_allocator_default_constructor<Allocator>::value;
-        // Confirmation that allocator_traits will directly call placement new(ptr)T(const T&)
+        // Confirmation that allocator_traits will only directly call placement new(ptr)T(const T&)
         static constexpr auto calls_copy_constructor_directly = 
             std::is_same_v<void,std::allocator<T>>||
             has_no_allocator_copy_constructor<Allocator>::value;
-        // Confirmation that allocator_traits will directly call ~T()
+        // Confirmation that allocator_traits will only directly call ~T()
         static constexpr auto calls_destructor_directly =
             std::is_same_v<void,std::allocator<T>> ||
             has_no_allocator_destructor<Allocator>::value;
