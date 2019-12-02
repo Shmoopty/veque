@@ -58,4 +58,5 @@ As a developer, I am not good at naming things.
 `deqstor`?
 
 ### To do:
+* Promote configuration constants in the class to template parameters?
 * Perhaps C++14 support?
