@@ -4,42 +4,44 @@
  *
  * Copyright (C) 2019 Drew Dormann
  *
- * SAMPLE OUTPUT (g++-9)
+ * SAMPLE OUTPUT (g++-9 -O3)
 
 std::deque results:
-   502,088 us resizing time
-   348,253 us back growth time
-    19,299 us front growth time
-   932,011 us arbitrary insertion time
-   285,542 us iteration time
-   539,452 us cache thrashing time
- 1,456,559 us reassignment time
- 4,083,208 us total time
+   498,803 us resizing time
+   364,899 us back growth time
+    16,785 us front growth time
+   929,737 us arbitrary insertion time
+   259,797 us iteration time
+   504,573 us cache thrashing time
+   937,551 us reassignment time
+ 3,512,147 us total time
 
 std::vector results:
-   217,627 us resizing time
-   745,331 us back growth time
- 6,916,795 us front growth time
- 1,108,077 us arbitrary insertion time
-   180,263 us iteration time
-   449,901 us cache thrashing time
- 1,393,661 us reassignment time
-11,011,659 us total time
+   200,595 us resizing time
+   727,043 us back growth time
+ 6,619,326 us front growth time
+ 1,069,258 us arbitrary insertion time
+   176,684 us iteration time
+   443,104 us cache thrashing time
+   888,547 us reassignment time
+10,124,560 us total time
 
 veque results:
-   176,656 us resizing time
-   600,655 us back growth time
-    31,510 us front growth time
-   538,941 us arbitrary insertion time
-   185,953 us iteration time
-   262,112 us cache thrashing time
- 1,120,177 us reassignment time
- 2,916,006 us total time
+   167,438 us resizing time
+   551,538 us back growth time
+    28,901 us front growth time
+   519,213 us arbitrary insertion time
+   178,766 us iteration time
+   262,727 us cache thrashing time
+   753,941 us reassignment time
+ 2,462,526 us total time
+
 
  */
 
 #include "include/veque.hpp"
 #include <algorithm>
+#include <array>
 #include <vector>
 #include <deque>
 #include <chrono>
@@ -52,15 +54,13 @@ veque results:
 #include <string_view>
 #include <functional>
 
-struct LargeTrivialObject {
-
-    bool operator==(const LargeTrivialObject & other) const {
-        return std::equal(std::begin(data), std::end(data), other.data);
-    }
-    int data[1024];
+struct LargeTrivialObject
+{
+    std::array<int,1024> data;
 };
 
-struct NonTrivialObject {
+struct NonTrivialObject
+{
     std::string data = std::string(1024, 'W');
 
     bool operator==(const NonTrivialObject & other) const {
@@ -68,7 +68,8 @@ struct NonTrivialObject {
     }
 };
 
-struct ThrowingMoveConstructObject {
+struct ThrowingMoveConstructObject
+{
     ThrowingMoveConstructObject() = default;
     ThrowingMoveConstructObject(const ThrowingMoveConstructObject&) = default;
 
@@ -85,7 +86,8 @@ struct ThrowingMoveConstructObject {
     std::string data = std::string(1024, 'X');
 };
 
-struct ThrowingMoveAssignObject {
+struct ThrowingMoveAssignObject
+{
     ThrowingMoveAssignObject() = default;
     ThrowingMoveAssignObject(const ThrowingMoveAssignObject&) = default;
     ThrowingMoveAssignObject(ThrowingMoveAssignObject&&) = default;
@@ -130,7 +132,7 @@ int reassignment_test(int i)
     //std::random_device rd;
     //std::mt19937 gen(rd());
     srand(time(NULL));
-    for ( int x = 0; x < 3'000; ++x )
+    for ( int x = 0; x < 2'000; ++x )
     {
         auto v1 = Container( rand() % 100 );
         auto v2 = Container( rand() % 100 );
@@ -140,7 +142,7 @@ int reassignment_test(int i)
         i += *reinterpret_cast<char*>(&v1);
     }
 
-    for ( int x = 0; x < 3'000; ++x )
+    for ( int x = 0; x < 2'000; ++x )
     {
         auto v1 = Container( rand() % 100 );
         auto v2 = Container( rand() % 100 );

@@ -202,15 +202,15 @@
         
         // Confirmation that allocator_traits will only directly call placement new(ptr)T()
         static constexpr auto calls_default_constructor_directly = 
-            std::is_same_v<void,std::allocator<T>> ||
+            std::is_same_v<allocator_type,std::allocator<T>> ||
             has_no_allocator_default_constructor<Allocator>::value;
         // Confirmation that allocator_traits will only directly call placement new(ptr)T(const T&)
         static constexpr auto calls_copy_constructor_directly = 
-            std::is_same_v<void,std::allocator<T>>||
+            std::is_same_v<allocator_type,std::allocator<T>>||
             has_no_allocator_copy_constructor<Allocator>::value;
         // Confirmation that allocator_traits will only directly call ~T()
         static constexpr auto calls_destructor_directly =
-            std::is_same_v<void,std::allocator<T>> ||
+            std::is_same_v<allocator_type,std::allocator<T>> ||
             has_no_allocator_destructor<Allocator>::value;
         
         using full_realloc = std::ratio_add<std::ratio<1>,std::ratio_add<front_realloc,back_realloc>>;
@@ -1070,7 +1070,7 @@
             // The ssize type's ceiling
             std::numeric_limits<ssize_type>::max() / sizeof(T),
             // Ceiling imposed by std::ratio math
-            std::numeric_limits<size_type>::max() / front_realloc::type::num
+            std::numeric_limits<size_type>::max() / full_realloc::num
         );
         
         // The allocator's ceiling
