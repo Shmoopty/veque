@@ -83,7 +83,8 @@ All `assign` functions match the behavior, complexity, and exception rules of [C
 
         void assign( size_type, const T &value )
         
-        void assign( iterator, iterator )
+        template <typename InputIt>
+        void assign( InputIt, InputIt )
         
         void assign( std::initializer_list<T> )
         
