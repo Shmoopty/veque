@@ -16,7 +16,7 @@ To jump to the API details that are unique to `veque`, go to the [Capacity](#cap
 |---|---|
 | All read only operations, swap | Never |
 | clear, operator=, assign | Always |
-| insert, emplace | **Always**.  Consider using the returned iterator |
+| insert, emplace, erase | **Always**.  Consider using the returned iterator |
 | all reserves, shrink_to_fit | If the vector changed capacity, all of them. If not, none |
 | push_back, emplace_back, resize, resize_back | If the vector changed capacity, all of them. If not, only end() |
 | push_front, emplace_front, resize_front | If the vector changed capacity, all of them. If not, only begin() |
