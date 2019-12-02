@@ -452,14 +452,6 @@ int arbitrary_insertion_test(int i)
     return i;
 }
  
-// Sample data, each in increasing comparison order
-template<typename T> const T sample;
-template<> const int sample<int> = 99999999;
-template<> const std::string sample<std::string> = std::string(100, 'X');
-template<> const double sample<double> = 55.0;
-template<> const std::vector<int> sample<std::vector<int>> = { 6, 7, 8, 9, 10, 11, 12 };
-
-
 template< typename Container >
 int iteration_test(int i)
 {

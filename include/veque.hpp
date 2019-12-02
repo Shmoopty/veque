@@ -16,6 +16,7 @@
 #include <iterator>
 #include <limits>
 #include <ratio>
+#include <type_traits>
 #include <stdexcept>
 #include <utility>
 
@@ -160,10 +161,6 @@
 
     private:
         
-        // Relative to size(), amount of unused space to reserve when reallocating
-        using front_realloc = std::ratio<1>;
-        using back_realloc = std::ratio<1>;
-        
         // If true, arbitrary insert and erase operations are twice the speed of
         //   std::vector, but those operations invalidate all iterators
         //   
@@ -171,8 +168,51 @@
         //   std::vector including iterator invalidation rules
         static constexpr auto resize_from_closest_side = true;
 
+        // Relative to size(), amount of unused space to reserve when reallocating
+        using front_realloc = std::ratio<1>;
+        using back_realloc = std::ratio<1>;
+        
         static_assert( std::ratio_greater_equal_v<front_realloc,std::ratio<0>> );
         static_assert( std::ratio_greater_equal_v<back_realloc,std::ratio<0>> );
+
+        
+        template<typename Alloc, typename = void >
+        struct has_no_allocator_default_constructor : std::true_type {};
+
+        template<typename Alloc>
+        struct has_no_allocator_default_constructor< Alloc, std::void_t<
+            decltype(std::declval<Alloc&>().construct(std::declval<T*>()))
+        > > : std::false_type {};
+        
+        template<typename Alloc, typename = void >
+        struct has_no_allocator_copy_constructor : std::true_type {};
+
+        template<typename Alloc>
+        struct has_no_allocator_copy_constructor< Alloc, std::void_t<
+            decltype(std::declval<Alloc&>().construct(std::declval<T*>(), std::declval<const T&>()))
+        > > : std::false_type {};
+        
+        template<typename Alloc, typename = void >
+        struct has_no_allocator_destructor : std::true_type {};
+
+        template<typename Alloc>
+        struct has_no_allocator_destructor< Alloc, std::void_t<
+            decltype(std::declval<Alloc&>().destroy(std::declval<T*>()))
+        > > : std::false_type {};
+        
+        // Confirmation that allocator_traits will directly call placement new(ptr)T()
+        static constexpr auto calls_default_constructor_directly = 
+            std::is_same_v<void,std::allocator<T>> ||
+            has_no_allocator_default_constructor<Allocator>::value;
+        // Confirmation that allocator_traits will directly call placement new(ptr)T(const T&)
+        static constexpr auto calls_copy_constructor_directly = 
+            std::is_same_v<void,std::allocator<T>>||
+            has_no_allocator_copy_constructor<Allocator>::value;
+        // Confirmation that allocator_traits will directly call ~T()
+        static constexpr auto calls_destructor_directly =
+            std::is_same_v<void,std::allocator<T>> ||
+            has_no_allocator_destructor<Allocator>::value;
+        
         using full_realloc = std::ratio_add<std::ratio<1>,std::ratio_add<front_realloc,back_realloc>>;
 
         size_type _size = 0;    // Number of elements in use
@@ -270,8 +310,9 @@
         // Casts to T&& or T&, depending on whether move construction is noexcept
         static decltype(auto) _nothrow_move( T & t );
         // Move-constructs if noexcept, copies otherwise
-        void _nothrow_move_construct( iterator dest, const_iterator src );
-        void _nothrow_move_construct_range( iterator b, iterator e, const_iterator src );
+        void _nothrow_move_construct( iterator dest, iterator src );
+        void _nothrow_move_construct_range( iterator b, iterator e, iterator src );
+        
         // Move-assigns if noexcept, copies otherwise
         static void _nothrow_move_assign( iterator dest, iterator src );
         static void _nothrow_move_assign_range( iterator b, iterator e, iterator src );
@@ -316,7 +357,7 @@
     template< typename T, typename Alloc >
     void veque<T,Alloc>::_destroy( const_iterator const b, const_iterator const e )
     {
-        if constexpr ( std::is_trivially_destructible_v<T> )
+        if constexpr ( std::is_trivially_destructible_v<T> && calls_destructor_directly )
         {
             (void)b; (void)e; // Unused
         }
@@ -334,16 +375,23 @@
     template< typename ...Args >
     void veque<T,Alloc>::_value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
     {
-        for ( auto dest = _mutable_iterator(b); dest != e; ++dest )
+        if constexpr ( std::is_trivially_copy_constructible_v<T> && sizeof...(args) == 0 && calls_default_constructor_directly )
         {
-            alloc_traits::construct( _allocator(), dest, args... );
+            std::memset( _mutable_iterator(b), 0, std::distance( b, e ) * sizeof(T) );
+        }
+        else
+        {
+            for ( auto dest = _mutable_iterator(b); dest != e; ++dest )
+            {
+                alloc_traits::construct( _allocator(), dest, args... );
+            }
         }
     }
     
     template< typename T, typename Alloc >
     void veque<T,Alloc>::_copy_construct_range( const_iterator b, const_iterator e, const_iterator src )
     {
-        if constexpr ( std::is_trivially_copy_constructible_v<T> )
+        if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
         {
             std::memcpy( _mutable_iterator(b), src, std::distance( b, e ) * sizeof(T) );
         }
@@ -413,29 +461,25 @@
     }
 
     template< typename T, typename Alloc >
-    void veque<T,Alloc>::_nothrow_move_construct( iterator dest, const_iterator src )
+    void veque<T,Alloc>::_nothrow_move_construct( iterator dest, iterator src )
     {
-        if constexpr ( std::is_trivially_copy_constructible_v<T> )
+        if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
         {
             *dest = *src;
         }
-        else if constexpr ( std::is_nothrow_move_constructible_v<T> )
-        {
-            alloc_traits::construct( _allocator(), dest, std::move(*src) );
-        }
         else
         {
-            alloc_traits::construct( _allocator(), dest, *src );
+            alloc_traits::construct( _allocator(), dest, _nothrow_move(*src) );
         }
     }
 
     template< typename T, typename Alloc >
-    void veque<T,Alloc>::_nothrow_move_construct_range( iterator b, iterator e, const_iterator src )
+    void veque<T,Alloc>::_nothrow_move_construct_range( iterator b, iterator e, iterator src )
     {
         auto size = std::distance( b, e );
         if ( size )
         {
-            if constexpr ( std::is_trivially_copy_constructible_v<T> )
+            if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
             {
                 std::memcpy( b, src, size * sizeof(T) );
             }
@@ -448,7 +492,7 @@
             }
         }
     }
-        
+               
     template< typename T, typename Alloc >
     void veque<T,Alloc>::_nothrow_move_assign( iterator dest, iterator src )
     {
@@ -476,16 +520,15 @@
         auto start = _mutable_iterator(b);
         if ( element_count )
         {
-            if constexpr ( std::is_trivially_copyable_v<T> )
+            auto dest = start - distance;
+            if constexpr ( std::is_trivially_copyable_v<T> && calls_copy_constructor_directly )
             {
-                std::memmove( start - distance, start, element_count * sizeof(T) );
+                std::memmove( dest, start, element_count * sizeof(T) );
             }
             else
             {
                 auto src = start;
-                auto dest = start - distance;
                 auto dest_construct_end = std::min( begin(), _mutable_iterator(e) - distance );
-                
                 for ( ; dest < dest_construct_end; ++src, ++dest )
                 {
                     _nothrow_move_construct( dest, src );
@@ -526,7 +569,7 @@
         auto element_count = std::distance( b, e );
         if ( element_count )
         {
-            if constexpr ( std::is_trivially_copyable_v<T> )
+            if constexpr ( std::is_trivially_copyable_v<T> && calls_copy_constructor_directly )
             {
                 std::memmove( start + distance, start, element_count * sizeof(T) );
             }
@@ -622,7 +665,7 @@
         
         if ( size() == 0 )
         {
-            _nothrow_move_construct_range( ideal_begin, ideal_begin + count, first );        
+            _copy_construct_range( ideal_begin, ideal_begin + count, first );        
             _move_begin( std::distance( begin(), ideal_begin ) );
             _move_end( std::distance( end(), ideal_begin + count ) );
         }
@@ -655,13 +698,13 @@
             auto dest = ideal_begin;
             for ( ; dest != begin(); ++dest, ++src )
             {
-                _nothrow_move_construct( dest, src );
+                alloc_traits::construct( _allocator(), dest, *src );
             }
             dest = std::copy( src, src + size(), dest );
             src += size();
             for ( ; src != last; ++dest, ++src  )
             {
-                _nothrow_move_construct( dest, src );
+                alloc_traits::construct( _allocator(), dest, *src );
             }
             _move_begin( std::distance( begin(), ideal_begin ) );
             _move_end( std::distance( end(), ideal_begin + count ) );
@@ -702,7 +745,7 @@
                 auto dest = ideal_begin;
                 for ( ; dest != begin(); ++dest )
                 {
-                    if constexpr ( std::is_trivially_copy_constructible_v<T> )
+                    if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
                     {
                         *dest = value;
                     }
@@ -714,7 +757,7 @@
                 std::fill( begin(), end(), value );
                 for ( ; dest != ideal_begin + count; ++dest  )
                 {
-                    if constexpr ( std::is_trivially_copy_constructible_v<T> )
+                    if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
                     {
                         *dest = value;
                     }
