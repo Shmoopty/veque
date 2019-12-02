@@ -58,5 +58,4 @@ As a developer, I am not good at naming things.
 `deqstor`?
 
 ### To do:
-* Make `veque::operator=( const veque & other )` optimize use of assignment over construction.
 * Perhaps C++14 support?
