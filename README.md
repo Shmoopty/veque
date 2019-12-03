@@ -55,7 +55,7 @@ As a developer, I am not good at naming things.
 
 `double_ended_vector`?
 
-`deqstor`?
+`dextor`?
 
 ### To do:
 * Promote configuration constants in the class to template parameters?
