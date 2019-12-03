@@ -237,7 +237,7 @@ template<typename T>
 using GrumpyVeque = veque::veque<T,veque::fast_resize_traits,StatefulAllocator<T>>;
 
 template<typename T>
-using PropogatingGrumpyVeque = veque::veque<T,veque::fast_resize_traits,PropagatingStatefulAllocator<T>>;
+using PropogatingGrumpyVeque = veque::veque<T,veque::std_vector_traits,PropagatingStatefulAllocator<T>>;
 
 template<typename T>
 using AllocCountingVeque = veque::veque<T,veque::vector_compatible_resize_traits,CountingAllocator<T>>;
