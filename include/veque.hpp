@@ -44,6 +44,16 @@ namespace veque
         static constexpr auto resize_from_closest_side = false;
    };
     
+    struct std_vector_traits
+    {
+        // Reserve storage only at back, like std::vector
+        using front_realloc = std::ratio<0>;
+        using back_realloc = std::ratio<1>;
+
+        // Same iterator invalidation rules as std::vector
+        static constexpr auto resize_from_closest_side = false;
+   };
+    
     template< typename T, typename ResizeTraits = fast_resize_traits, typename Allocator = std::allocator<T> >
     class veque
     {
