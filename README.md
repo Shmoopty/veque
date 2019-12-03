@@ -45,8 +45,8 @@ _In the spirit of C++20, it is reasonable to ask for the size as a signed type:_
 
 ### Tradeoffs
 Is **veque** better than `std::vector` in every conceivable way?  No.  But the tradeoffs are appealing.
-* **veque** is a bit more eager to preallocate memory than a typical `std::vector` implementation, to anticipate resizing from either end.
-* `insert()` and `erase()` function calls should be assumed to invalidate all iterators and references, since the resizing could happen from either direction.  By comparison, the same `std::vector` and `std::deque` operations will sometimes only invalidate *some* of the iterators and references.
+* **veque** is a bit more eager to preallocate memory than a typical `std::vector` implementation, to anticipate resizing from either end.  **(New - configurable via traits class!)**
+* `insert()` and `erase()` function calls should be assumed to invalidate all iterators and references, since the resizing could happen from either direction.  By comparison, the same `std::vector` and `std::deque` operations will sometimes only invalidate *some* of the iterators and references.  **(New - configurable via traits class!)**
 * `veque<bool>` is *not* specialized.  Whether that makes it better or worse is up to you.
 
 ### Why "veque"?
