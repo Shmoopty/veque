@@ -6,36 +6,17 @@
  *
  * SAMPLE OUTPUT (g++-9 -O3)
 
-std::deque results:
-   498,803 us resizing time
-   364,899 us back growth time
-    16,785 us front growth time
-   929,737 us arbitrary insertion time
-   259,797 us iteration time
-   504,573 us cache thrashing time
-   937,551 us reassignment time
- 3,512,147 us total time
 
-std::vector results:
-   200,595 us resizing time
-   727,043 us back growth time
- 6,619,326 us front growth time
- 1,069,258 us arbitrary insertion time
-   176,684 us iteration time
-   443,104 us cache thrashing time
-   888,547 us reassignment time
-10,124,560 us total time
-
-veque::veque results:
-   167,438 us resizing time
-   551,538 us back growth time
-    28,901 us front growth time
-   519,213 us arbitrary insertion time
-   178,766 us iteration time
-   262,727 us cache thrashing time
-   753,941 us reassignment time
- 2,462,526 us total time
-
+Test                   std::deque        std::vector              veque
+-----------------------------------------------------------------------
+Resizing:               500,704us          201,622us          166,267us
+Back growth:            342,218us          735,035us          552,027us
+Front growth:            16,386us        6,685,217us           30,739us
+Arbitrary insertion:    913,553us        1,092,013us          529,713us
+Iteration:              265,642us          203,040us          207,987us
+Random operations:      491,843us          455,366us          260,006us
+Reassignment:           949,994us          876,424us          746,213us
+Total:                3,480,344us       10,248,719us        2,492,954us
 
  */
 
@@ -741,92 +722,119 @@ int run_random_operations_test(int i) {
 
 
 template< template<typename ...Args> typename Container >
-int test(char i, const char * results_name = nullptr ) {
+int test(std::array<std::chrono::steady_clock::duration,7> & results, char i )
+{
+    auto t1 = std::chrono::steady_clock::now();
 
-    static std::array<std::chrono::steady_clock::duration,7> results;
+    i += run_resizing_test<Container>((int) i);
+    auto t2 = std::chrono::steady_clock::now();
+    results[0] += (t2 - t1);
 
-    if ( results_name )
-    {
-        std::cout.imbue(std::locale(""));
-        std::cout << '\n' << results_name << " results:\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[0]).count() << " us resizing time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[1]).count() << " us back growth time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[2]).count() << " us front growth time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[3]).count() << " us arbitrary insertion time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[4]).count() << " us iteration time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[5]).count() << " us cache thrashing time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(results[6]).count() << " us reassignment time\n";
-        std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(results.begin(), results.end(), std::chrono::steady_clock::duration{})).count() << " us total time\n";
-        
-    }
-    else
-    {
-        auto t1 = std::chrono::steady_clock::now();
+    i += run_back_growth_test<Container>((int) i);
+    auto t3 = std::chrono::steady_clock::now();
+    results[1] += (t3 - t2);
 
-        i += run_resizing_test<Container>((int) i);
-        auto t2 = std::chrono::steady_clock::now();
-        results[0] += (t2 - t1);
+    i += run_front_growth_test<Container>((int) i);
+    auto t4 = std::chrono::steady_clock::now();
+    results[2] += (t4 - t3);
 
-        i += run_back_growth_test<Container>((int) i);
-        auto t3 = std::chrono::steady_clock::now();
-        results[1] += (t3 - t2);
+    i += run_arbitrary_insertion_test<Container>((int) i);
+    auto t5 = std::chrono::steady_clock::now();
+    results[3] += (t5 - t4);
 
-        i += run_front_growth_test<Container>((int) i);
-        auto t4 = std::chrono::steady_clock::now();
-        results[2] += (t4 - t3);
+    i += run_iteration_test<Container>((int) i);
+    auto t6 = std::chrono::steady_clock::now();
+    results[4] += (t6 - t5);
 
-        i += run_arbitrary_insertion_test<Container>((int) i);
-        auto t5 = std::chrono::steady_clock::now();
-        results[3] += (t5 - t4);
+    i += run_random_operations_test<Container>((int) i);
+    auto t7 = std::chrono::steady_clock::now();
+    results[5] += (t7 - t6);
 
-        i += run_iteration_test<Container>((int) i);
-        auto t6 = std::chrono::steady_clock::now();
-        results[4] += (t6 - t5);
-
-        i += run_random_operations_test<Container>((int) i);
-        auto t7 = std::chrono::steady_clock::now();
-        results[5] += (t7 - t6);
-
-        i += run_reassignment_test<Container>((int) i);
-        auto t8 = std::chrono::steady_clock::now();
-        results[6] += (t8 - t7);
-    }
+    i += run_reassignment_test<Container>((int) i);
+    auto t8 = std::chrono::steady_clock::now();
+    results[6] += (t8 - t7);
     
     return i;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
+    static std::array<std::chrono::steady_clock::duration,7> deque_results;
+    static std::array<std::chrono::steady_clock::duration,7> vector_results;
+    static std::array<std::chrono::steady_clock::duration,7> veque_results;
     
     std::cout << "\ntesting std::deque (1 of 3)\n";
-    argc += test<std::deque>(argv[0][0]);
+    argc += test<std::deque>(deque_results, argv[0][0]);
 
     std::cout << "\ntesting std::vector (1 of 3)\n";
-    argc += test<std::vector>(argv[0][0]);
+    argc += test<std::vector>(vector_results, argv[0][0]);
 
     std::cout << "\ntesting veque::veque (1 of 3)\n";
-    argc += test<veque::veque>(argv[0][0]);
+    argc += test<veque::veque>(veque_results, argv[0][0]);
 
     std::cout << "\ntesting std::deque (2 of 3)\n";
-    argc += test<std::deque>(argv[0][0]);
+    argc += test<std::deque>(deque_results, argv[0][0]);
 
     std::cout << "\ntesting std::vector (2 of 3)\n";
-    argc += test<std::vector>(argv[0][0]);
+    argc += test<std::vector>(vector_results, argv[0][0]);
 
     std::cout << "\ntesting veque::veque (2 of 3 )\n";
-    argc += test<veque::veque>(argv[0][0]);
+    argc += test<veque::veque>(veque_results, argv[0][0]);
 
     std::cout << "\ntesting std::deque (3 of 3)\n";
-    argc += test<std::deque>(argv[0][0]);
+    argc += test<std::deque>(deque_results, argv[0][0]);
 
     std::cout << "\ntesting std::vector (3 of 3)\n";
-    argc += test<std::vector>(argv[0][0]);
+    argc += test<std::vector>(vector_results, argv[0][0]);
 
     std::cout << "\ntesting veque::veque (3 of 3)\n";
-    argc += test<veque::veque>(argv[0][0]);
+    argc += test<veque::veque>(veque_results, argv[0][0]);
 
-    test<std::deque>(argv[0][0], "std::deque");
-    test<std::vector>(argv[0][0], "std::vector");
-    test<veque::veque>(argv[0][0], "veque::veque");
+    
+    std::cout.imbue(std::locale(""));
+    std::cout << "\nTest                   std::deque        std::vector              veque\n";
+    std::cout << "-----------------------------------------------------------------------\n";
+    std::cout << std::setw(10) << std::right;
+
+    std::cout << "Resizing:            ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[0]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[0]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[0]).count() << "us\n";
+
+    std::cout << "Back growth:         ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[1]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[1]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[1]).count() << "us\n";
+
+    std::cout << "Front growth:        ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[2]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[2]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[2]).count() << "us\n";
+
+    std::cout << "Arbitrary insertion: ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[3]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[3]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[3]).count() << "us\n";
+
+    std::cout << "Iteration:           ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[4]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[4]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[4]).count() << "us\n";
+
+    std::cout << "Random operations:   ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[5]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[5]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[5]).count() << "us\n";
+
+    std::cout << "Reassignment:        ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(deque_results[6]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(vector_results[6]).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(veque_results[6]).count() << "us\n";
+
+    std::cout << "Total:               ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(deque_results.begin(), deque_results.end(), std::chrono::steady_clock::duration{})).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(vector_results.begin(), vector_results.end(), std::chrono::steady_clock::duration{})).count() << "us       ";
+    std::cout << std::setw(10) << std::right << std::chrono::duration_cast<std::chrono::microseconds>(std::accumulate(veque_results.begin(), veque_results.end(), std::chrono::steady_clock::duration{})).count() << "us\n";
 
     return argc;
 }
