@@ -26,7 +26,7 @@ std::vector results:
    888,547 us reassignment time
 10,124,560 us total time
 
-veque results:
+veque::veque results:
    167,438 us resizing time
    551,538 us back growth time
     28,901 us front growth time
@@ -289,7 +289,7 @@ int front_growth_test(int i)
             ++size;
         }
         while (v.size()) {
-            if constexpr( std::is_same_v<Container, veque<ValType>>)
+            if constexpr( std::is_same_v<Container, veque::veque<ValType>>)
             {
                 ValType x = v.pop_back_element();
                 i += *reinterpret_cast<char*>(&x);
@@ -317,7 +317,7 @@ int front_growth_test(int i)
             ++size;
         }
         while (v.size()) {
-            if constexpr( std::is_same_v<Container, veque<ValType>>)
+            if constexpr( std::is_same_v<Container, veque::veque<ValType>>)
             {
                 ValType x = v.pop_front_element();
                 i += *reinterpret_cast<char*>(&x);
@@ -621,7 +621,7 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                if constexpr( std::is_same_v<Container, veque<ValType>> )
+                if constexpr( std::is_same_v<Container, veque::veque<ValType>> )
                 {
                     ValType x = veq.pop_front_element();
                     i += *reinterpret_cast<char*>(&x);
@@ -644,7 +644,7 @@ int random_operations_test(int i)
         {
             if ( veq.size() )
             {
-                if constexpr( std::is_same_v<Container, veque<ValType>> )
+                if constexpr( std::is_same_v<Container, veque::veque<ValType>> )
                 {
                     ValType x = veq.pop_back_element();
                     i += *reinterpret_cast<char*>(&x);
@@ -803,8 +803,8 @@ int main(int argc, char** argv) {
     std::cout << "\ntesting std::vector (1 of 3)\n";
     argc += test<std::vector>(argv[0][0]);
 
-    std::cout << "\ntesting veque (1 of 3)\n";
-    argc += test<veque>(argv[0][0]);
+    std::cout << "\ntesting veque::veque (1 of 3)\n";
+    argc += test<veque::veque>(argv[0][0]);
 
     std::cout << "\ntesting std::deque (2 of 3)\n";
     argc += test<std::deque>(argv[0][0]);
@@ -812,8 +812,8 @@ int main(int argc, char** argv) {
     std::cout << "\ntesting std::vector (2 of 3)\n";
     argc += test<std::vector>(argv[0][0]);
 
-    std::cout << "\ntesting veque (2 of 3 )\n";
-    argc += test<veque>(argv[0][0]);
+    std::cout << "\ntesting veque::veque (2 of 3 )\n";
+    argc += test<veque::veque>(argv[0][0]);
 
     std::cout << "\ntesting std::deque (3 of 3)\n";
     argc += test<std::deque>(argv[0][0]);
@@ -821,12 +821,12 @@ int main(int argc, char** argv) {
     std::cout << "\ntesting std::vector (3 of 3)\n";
     argc += test<std::vector>(argv[0][0]);
 
-    std::cout << "\ntesting veque (3 of 3)\n";
-    argc += test<veque>(argv[0][0]);
+    std::cout << "\ntesting veque::veque (3 of 3)\n";
+    argc += test<veque::veque>(argv[0][0]);
 
     test<std::deque>(argv[0][0], "std::deque");
     test<std::vector>(argv[0][0], "std::vector");
-    test<veque>(argv[0][0], "veque");
+    test<veque::veque>(argv[0][0], "veque::veque");
 
     return argc;
 }

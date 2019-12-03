@@ -1,6 +1,6 @@
 /* 
  * 
- * veque test suite.
+ * veque::veque test suite.
  * 
  * Additionally, valgrind claims there is no bad behavior throughout this usage.
  *
@@ -231,21 +231,21 @@ struct ThrowingMoveObject
 };
 
 template<typename T>
-using StdVeque = veque<T>;
+using StdVeque = veque::veque<T>;
 
 template<typename T>
-using GrumpyVeque = veque<T,StatefulAllocator<T>>;
+using GrumpyVeque = veque::veque<T,veque::fast_resize_traits,StatefulAllocator<T>>;
 
 template<typename T>
-using PropogatingGrumpyVeque = veque<T,PropagatingStatefulAllocator<T>>;
+using PropogatingGrumpyVeque = veque::veque<T,veque::fast_resize_traits,PropagatingStatefulAllocator<T>>;
 
 template<typename T>
-using AllocCountingVeque = veque<T,CountingAllocator<T>>;
+using AllocCountingVeque = veque::veque<T,veque::vector_compatible_resize_traits,CountingAllocator<T>>;
 
 template<typename Container>
 constexpr bool is_using_counting_allocator = std::is_same_v< typename Container::allocator_type, CountingAllocator<typename Container::value_type> >;
 
-TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject) )
+TEMPLATE_PRODUCT_TEST_CASE( "veque::veques can be sized and resized", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject) )
 {
     TestType v( 5 );
 
@@ -346,7 +346,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veques can be sized and resized", "[veque][template
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ ) )
+TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int /*, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject*/ ) )
 {
     typename TestType::size_type size = 5;
     TestType v( size );
@@ -435,7 +435,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large end growth", "[veque][template]", (StdVeque, 
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ ) )
+TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool/*, int, std::string, LargeTrivialObject, NonTrivialObject*/ ) )
 {
     typename TestType::size_type size = 5;
     TestType v( size );
@@ -592,7 +592,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "large insertion growth", "[veque][template]", (StdV
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "veques can be modified at either end with strong exception guarantee", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject ) )
+TEMPLATE_PRODUCT_TEST_CASE( "veque::veques can be modified at either end with strong exception guarantee", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (bool, int, std::string, LargeTrivialObject, NonTrivialObject, ThrowingMoveConstructObject, ThrowingMoveAssignObject, ThrowingMoveObject ) )
 {
     TestType v( 5 );
 
@@ -739,7 +739,7 @@ template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
 template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 
-TEMPLATE_PRODUCT_TEST_CASE( "reassignment", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "reassignment", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
 {
     // Valgrind doesn't like std::random_device.
     //std::random_device rd;
@@ -766,7 +766,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "reassignment", "[veque][template]", (StdVeque, Grum
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
 {
     using VectorType = std::vector<typename TestType::value_type, typename TestType::allocator_type>;
             
@@ -991,7 +991,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::vector interface parity", "[veque][template]",
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
 {
     TestType veq;
     std::deque<typename TestType::value_type, typename TestType::allocator_type> deq;
@@ -1249,7 +1249,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "std::deque interface parity", "[veque][template]", 
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "veque::veque element ordering and access", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
 {
     TestType veq1;
     
@@ -1408,7 +1408,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "veque element ordering and access", "[veque][templa
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
 {
     TestType veq{ val<typename TestType::value_type,1>, val<typename TestType::value_type,2>, val<typename TestType::value_type,3>  };
     veq.reserve(20);
@@ -1651,7 +1651,7 @@ TEMPLATE_PRODUCT_TEST_CASE( "insert/erase", "[veque][template]", (StdVeque, Grum
     }
 }
 
-TEMPLATE_PRODUCT_TEST_CASE( "hashing", "[veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double ) )
+TEMPLATE_PRODUCT_TEST_CASE( "hashing", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double ) )
 {
     std::unordered_set<TestType> uset;
     
