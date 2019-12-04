@@ -93,12 +93,24 @@ namespace veque
         veque( InputIt first,  InputIt last, const Allocator& = Allocator() );
         veque( std::initializer_list<T>, const Allocator& = Allocator() );
         veque( const veque & );
-        veque( const veque &, const Allocator& );
+        template< typename OtherResizeTraits >
+        veque( const veque<T,OtherResizeTraits,Allocator> & );
+        template< typename OtherResizeTraits >
+        veque( const veque<T,OtherResizeTraits,Allocator> &, const Allocator& );
         veque( veque && ) noexcept;
-        veque( veque &&, const Allocator& ) noexcept;
+        template< typename OtherResizeTraits >
+        veque( veque<T,OtherResizeTraits,Allocator> && ) noexcept;
+        template< typename OtherResizeTraits >
+        veque( veque<T,OtherResizeTraits,Allocator> &&, const Allocator& ) noexcept;
         ~veque();
         veque & operator=( const veque & );
+        template< typename OtherResizeTraits >
+        veque & operator=( const veque<T,OtherResizeTraits,Allocator> & );
         veque & operator=( veque && ) noexcept(
+            noexcept(alloc_traits::propagate_on_container_move_assignment::value
+            || alloc_traits::is_always_equal::value) );
+        template< typename OtherResizeTraits >
+        veque & operator=( veque<T,OtherResizeTraits,Allocator> && ) noexcept(
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
             || alloc_traits::is_always_equal::value) );
         veque & operator=( std::initializer_list<T> );
@@ -186,10 +198,21 @@ namespace veque
         // Resizes the veque, by adding or removing from the back.
         void resize_back( size_type );
         void resize_back( size_type, const T & );
+        
+        template< typename OtherResizeTraits >
+        veque & _copy_assignment( const veque<T,OtherResizeTraits,Allocator> & );
+        
+        template< typename OtherResizeTraits >
+        veque & _move_assignment( veque<T,OtherResizeTraits,Allocator> && ) noexcept(
+            noexcept(alloc_traits::propagate_on_container_move_assignment::value
+            || alloc_traits::is_always_equal::value) );
+        
+        
         // To achieve interface parity with std::vector, resize() performs resize_back();
         void resize( size_type );
         void resize( size_type, const T & );
-        void swap( veque & ) noexcept(
+        template< typename OtherResizeTraits >
+        void swap( veque<T,OtherResizeTraits,Allocator> & ) noexcept(
             noexcept(alloc_traits::propagate_on_container_swap::value
             || alloc_traits::is_always_equal::value));
 
@@ -216,8 +239,9 @@ namespace veque
 
         size_type _size = 0;    // Number of elements in use
         size_type _offset = 0;  // Number of uninitialized elements before begin()
-        
-        struct Data : Allocator // Employing EBO, since the allocator is frequently monostate.
+
+        // Deriving from allocator to leverage empty base optimization
+        struct Data : Allocator
         {
             size_type _allocated = 0;
             T *_storage = nullptr;
@@ -269,10 +293,13 @@ namespace veque
         // Construct elements in range
         template< typename ...Args >
         void _value_construct_range( const_iterator begin, const_iterator end, const Args & ...args );
-        void _copy_construct_range( const_iterator begin, const_iterator end, const_iterator src );
+        template< typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value> >
+        void _copy_construct_range( const_iterator begin, const_iterator end, InputIt src );
 
-        void _swap_with_allocator( veque && other ) noexcept;
-        void _swap_without_allocator( veque && other ) noexcept;
+        template< typename OtherResizeTraits >
+        void _swap_with_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept;
+        template< typename OtherResizeTraits >
+        void _swap_without_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept;
 
         template< typename ...Args >
         void _resize_front(size_type, const Args & ...);
@@ -307,7 +334,7 @@ namespace veque
         void _reassign_existing_storage( size_type count, const T & value );
 
         // Casts to T&& or T&, depending on whether move construction is noexcept
-        static decltype(auto) _nothrow_move( T & t );
+        static decltype(auto) _nothrow_construct_move( T & t );
         // Move-constructs if noexcept, copies otherwise
         void _nothrow_move_construct( iterator dest, iterator src );
         void _nothrow_move_construct_range( iterator b, iterator e, iterator src );
@@ -315,11 +342,13 @@ namespace veque
         // Move-assigns if noexcept, copies otherwise
         static void _nothrow_move_assign( iterator dest, iterator src );
         static void _nothrow_move_assign_range( iterator b, iterator e, iterator src );
+        
         // Adjust begin(), end() iterators
         void _move_begin( difference_type ) noexcept;
         void _move_end( difference_type ) noexcept;
         // Convert a local const_iterator to iterator
         iterator _mutable_iterator( const_iterator );
+        // Retrieves beginning of storage, which may be before begin()
         const_iterator _storage_begin() const noexcept;
         iterator _storage_begin() noexcept;
     };
@@ -402,7 +431,8 @@ namespace veque
     }
     
     template< typename T, typename ResizeTraits, typename Alloc >
-    void veque<T,ResizeTraits,Alloc>::_copy_construct_range( const_iterator b, const_iterator e, const_iterator src )
+    template< typename InputIt, typename >
+    void veque<T,ResizeTraits,Alloc>::_copy_construct_range( const_iterator b, const_iterator e, InputIt src )
     {
         if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
         {
@@ -416,9 +446,10 @@ namespace veque
             }
         }
     }
-    
+
     template< typename T, typename ResizeTraits, typename Alloc >
-    void veque<T,ResizeTraits,Alloc>::_swap_with_allocator( veque && other ) noexcept
+    template< typename OtherResizeTraits >
+    void veque<T,ResizeTraits,Alloc>::_swap_with_allocator( veque<T,OtherResizeTraits,Alloc> && other ) noexcept
     {
         // Swap everything
         std::swap( _size,      other._size );
@@ -427,7 +458,8 @@ namespace veque
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    void veque<T,ResizeTraits,Alloc>::_swap_without_allocator( veque && other ) noexcept
+    template< typename OtherResizeTraits >
+    void veque<T,ResizeTraits,Alloc>::_swap_without_allocator( veque<T,OtherResizeTraits,Alloc> && other ) noexcept
     {
         // Don't swap _data.allocator().
         std::swap( _size,            other._size );
@@ -461,7 +493,7 @@ namespace veque
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    decltype(auto) veque<T,ResizeTraits,Alloc>::_nothrow_move( T & t )
+    decltype(auto) veque<T,ResizeTraits,Alloc>::_nothrow_construct_move( T & t )
     {
         if constexpr ( std::is_nothrow_move_constructible_v<T> )
         {
@@ -482,7 +514,7 @@ namespace veque
         }
         else
         {
-            alloc_traits::construct( _allocator(), dest, _nothrow_move(*src) );
+            alloc_traits::construct( _allocator(), dest, _nothrow_construct_move(*src) );
         }
     }
 
@@ -509,7 +541,14 @@ namespace veque
     template< typename T, typename ResizeTraits, typename Alloc >
     void veque<T,ResizeTraits,Alloc>::_nothrow_move_assign( iterator dest, iterator src )
     {
-        *dest = _nothrow_move(*src);
+        if constexpr ( std::is_nothrow_move_assignable_v<T> )
+        {
+            *dest = std::move(*src);
+        }
+        else
+        {
+            *dest = *src;
+        }
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
@@ -797,6 +836,64 @@ namespace veque
     }
     
     template< typename T, typename ResizeTraits, typename Alloc >
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc> & veque<T,ResizeTraits,Alloc>::_copy_assignment( const veque<T,OtherResizeTraits,Alloc> & other )
+    {
+        if constexpr ( alloc_traits::propagate_on_container_copy_assignment::value )
+        {
+            if constexpr ( !alloc_traits::is_always_equal::value )
+            {
+                if ( other._allocator() != _allocator() || other.size() > capacity_full() )
+                {
+                    _swap_with_allocator( veque( other, other._allocator() ) );
+                    return *this;
+                }
+            }
+        }
+        if ( other.size() > capacity_full() )
+        {
+            _swap_without_allocator( veque( other, _allocator() ) );
+        }
+        else
+        {
+            _reassign_existing_storage( other.begin(), other.end() );
+        }
+        return *this;
+    }
+
+    template< typename T, typename ResizeTraits, typename Alloc >
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc> & veque<T,ResizeTraits,Alloc>::_move_assignment( veque<T,OtherResizeTraits,Alloc> && other ) noexcept(
+            noexcept(alloc_traits::propagate_on_container_move_assignment::value
+            || alloc_traits::is_always_equal::value) )
+    {
+        if constexpr ( !alloc_traits::is_always_equal::value )
+        {
+            if ( _allocator() != other._allocator() )
+            {
+                if constexpr ( alloc_traits::propagate_on_container_move_assignment::value )
+                {
+                    _swap_with_allocator( veque( std::move(other), other._allocator() ) );
+                }
+                else
+                {
+                    if ( other.size() > capacity_full() )
+                    {
+                        _swap_with_allocator( veque( std::move(other), _allocator() ) );
+                    }
+                    else
+                    {
+                        _reassign_existing_storage( std::move_iterator(other.begin()), std::move_iterator(other.end()) );       
+                    }
+                }
+                return *this;
+            }
+        }
+        _swap_without_allocator( std::move(other) );
+        return *this;
+    }
+
+    template< typename T, typename ResizeTraits, typename Alloc >
     veque<T,ResizeTraits,Alloc>::veque() noexcept (noexcept(Alloc()))
         : _data { 0, Alloc{} }
     {
@@ -841,7 +938,18 @@ namespace veque
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    veque<T,ResizeTraits,Alloc>::veque( const veque &other, const Alloc& alloc )
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc>::veque( const veque<T,OtherResizeTraits,Alloc> &other )
+        : _size{ other._size }
+        , _offset{ 0 }
+        , _data { other._size, alloc_traits::select_on_container_copy_construction( other._allocator() ) }
+    {
+        _copy_construct_range( begin(), end(), other.begin() );
+    }
+
+    template< typename T, typename ResizeTraits, typename Alloc >
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc>::veque( const veque<T,OtherResizeTraits,Alloc> &other, const Alloc& alloc )
         : _size{ other._size }
         , _offset{ 0 }
         , _data { other._size, alloc }
@@ -850,14 +958,23 @@ namespace veque
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    veque<T,ResizeTraits,Alloc>::veque(veque &&other) noexcept
+    veque<T,ResizeTraits,Alloc>::veque( veque &&other) noexcept
         : _data {}
     {
         _swap_with_allocator( std::move(other) );
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    veque<T,ResizeTraits,Alloc>::veque( veque && other, const Alloc& alloc ) noexcept
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc>::veque( veque<T,OtherResizeTraits,Alloc> &&other) noexcept
+        : _data {}
+    {
+        _swap_with_allocator( std::move(other) );
+    }
+
+    template< typename T, typename ResizeTraits, typename Alloc >
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc>::veque( veque<T,OtherResizeTraits,Alloc> && other, const Alloc& alloc ) noexcept
         : _size{ 0 }
         , _offset{ 0 }
         , _data{ alloc }
@@ -903,27 +1020,14 @@ namespace veque
     template< typename T, typename ResizeTraits, typename Alloc >
     veque<T,ResizeTraits,Alloc> & veque<T,ResizeTraits,Alloc>::operator=( const veque & other )
     {
-        if constexpr ( alloc_traits::propagate_on_container_copy_assignment::value &&
-                      !alloc_traits::is_always_equal::value )
-        {
-            if ( other._allocator() != _allocator() || other.size() > capacity_full() )
-            {
-                _swap_with_allocator( veque( other, other._allocator() ) );
-                return *this;
-            }
-        }
-        else
-        {
-            if ( other.size() > capacity_full() )
-            {
-                _swap_without_allocator( veque( other, _allocator() ) );
-                return *this;
-            }
-        }
+        return _copy_assignment( other );
+    }
 
-        _reassign_existing_storage( other.begin(), other.end() );
-
-        return *this;
+    template< typename T, typename ResizeTraits, typename Alloc >
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc> & veque<T,ResizeTraits,Alloc>::operator=( const veque<T,OtherResizeTraits,Alloc> & other )
+    {
+        return _copy_assignment( other );
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
@@ -931,17 +1035,16 @@ namespace veque
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
             || alloc_traits::is_always_equal::value) )
     {
-        if constexpr ( !alloc_traits::propagate_on_container_move_assignment::value && 
-                       !alloc_traits::is_always_equal::value )
-        {
-            if ( _allocator() != other._allocator() )
-            {
-                _swap_with_allocator( veque( std::move(other), _allocator() ) );
-                return *this;
-            }
-        }
-        _swap_with_allocator( std::move(other) );
-        return *this;
+        return _move_assignment(std::move(other));
+    }
+
+    template< typename T, typename ResizeTraits, typename Alloc >
+    template< typename OtherResizeTraits >
+    veque<T,ResizeTraits,Alloc> & veque<T,ResizeTraits,Alloc>::operator=( veque<T,OtherResizeTraits,Alloc> && other ) noexcept(
+            noexcept(alloc_traits::propagate_on_container_move_assignment::value
+            || alloc_traits::is_always_equal::value) )
+    {
+        return _move_assignment( std::move(other) );
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
@@ -1365,7 +1468,7 @@ namespace veque
     template< typename T, typename ResizeTraits, typename Alloc >
     T veque<T,ResizeTraits,Alloc>::pop_back_element()
     {
-        auto res( _nothrow_move(back()) );
+        auto res( _nothrow_construct_move(back()) );
         pop_back();
         return res;
     }
@@ -1405,7 +1508,7 @@ namespace veque
     template< typename T, typename ResizeTraits, typename Alloc >
     T veque<T,ResizeTraits,Alloc>::pop_front_element()
     {
-        auto res( _nothrow_move(front()) );
+        auto res( _nothrow_construct_move(front()) );
         pop_front();
         return res;
     }
@@ -1478,7 +1581,8 @@ namespace veque
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    void veque<T,ResizeTraits,Alloc>::swap( veque<T,ResizeTraits,Alloc> &other ) noexcept( noexcept(
+    template< typename OtherResizeTraits >
+    void veque<T,ResizeTraits,Alloc>::swap( veque<T,OtherResizeTraits,Alloc> &other ) noexcept( noexcept(
             alloc_traits::propagate_on_container_swap::value ||
             alloc_traits::is_always_equal::value))
     {
