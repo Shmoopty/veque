@@ -24,6 +24,11 @@ template<typename T>
 struct StatefulAllocator
 {
     using value_type = T;
+    using propagate_on_container_copy_assignment = std::false_type;
+    using propagate_on_container_move_assignment = std::false_type;
+    using propagate_on_container_swap = std::false_type;
+    using is_always_equal = std::false_type;
+
     static constexpr auto barrier_size = 64;
     std::uint32_t barrier = 0xDEADBEEF + rand();
 
@@ -63,15 +68,16 @@ struct StatefulAllocator
             std::free( ptr );
         }
     }
-    using propagate_on_container_copy_assignment = std::false_type;
-    using propagate_on_container_move_assignment = std::false_type;
-    using propagate_on_container_swap = std::false_type;
 };
 
 // An allocator that expects to propagate to other containers
 template<typename T>
 struct PropagatingStatefulAllocator : StatefulAllocator<T>
 {
+    using propagate_on_container_copy_assignment = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+    using propagate_on_container_swap = std::true_type;
+
     PropagatingStatefulAllocator() = default;
     constexpr PropagatingStatefulAllocator(const PropagatingStatefulAllocator<T> &) = default;
     constexpr PropagatingStatefulAllocator(PropagatingStatefulAllocator<T> &&) = default;
@@ -79,9 +85,6 @@ struct PropagatingStatefulAllocator : StatefulAllocator<T>
     PropagatingStatefulAllocator( const PropagatingStatefulAllocator<U>& other ) noexcept : StatefulAllocator<T>{other} {}
     constexpr PropagatingStatefulAllocator& operator=(const PropagatingStatefulAllocator<T> &o) = default;
     constexpr PropagatingStatefulAllocator& operator=(PropagatingStatefulAllocator<T> &&o) = default;
-    using propagate_on_container_copy_assignment = std::true_type;
-    using propagate_on_container_move_assignment = std::true_type;
-    using propagate_on_container_swap = std::true_type;
 };
 
 // An allocator with construct/destroy members that must always be called.
@@ -126,25 +129,25 @@ struct CountingAllocator
 };
 
 template< class T1, class T2 >
-bool operator==( const StatefulAllocator<T1>& lhs, const StatefulAllocator<T2>& rhs ) noexcept
+constexpr bool operator==( const StatefulAllocator<T1>& lhs, const StatefulAllocator<T2>& rhs ) noexcept
 {
     return lhs.barrier == rhs.barrier;
 }
 
 template< class T1, class T2 >
-bool operator!=( const StatefulAllocator<T1>& lhs, const StatefulAllocator<T2>& rhs ) noexcept
+constexpr bool operator!=( const StatefulAllocator<T1>& lhs, const StatefulAllocator<T2>& rhs ) noexcept
 {
     return lhs.barrier != rhs.barrier;
 }
 
 template< class T1, class T2 >
-bool operator==( const CountingAllocator<T1>&, const CountingAllocator<T2>& ) noexcept
+constexpr bool operator==( const CountingAllocator<T1>&, const CountingAllocator<T2>& ) noexcept
 {
     return true;
 }
 
 template< class T1, class T2 >
-bool operator!=( const CountingAllocator<T1>&, const CountingAllocator<T2>& ) noexcept
+constexpr bool operator!=( const CountingAllocator<T1>&, const CountingAllocator<T2>& ) noexcept
 {
     return false;
 }
