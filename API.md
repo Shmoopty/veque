@@ -7,7 +7,7 @@ This is intended to be a thorough description of the entire `veque` interface.
 
 To jump to the API details that are unique to `veque`, go to the [Capacity](#capacity) and [Modifiers](#modifiers) sections.
 
-    template <typename T, typename Allocator = std::allocator<T> >
+    template<typename T, typename ResizeTraits=fast_resize_traits, typename Allocator=std::allocator<T>>
     class veque
     
 ## Iterator invalidation
