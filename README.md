@@ -12,12 +12,12 @@ A [very fast](performance/main.cpp#L7) C++17 container combining the best featur
 **veque** is an allocator-aware, efficient container with interface matching both `std::vector` and `std::deque`.  Its data layout is very similar to `std::vector`, but with unused storage maintained both _before_ and _after_ the used storage. 
 
 ### Features
-* Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.
+* Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.  That makes the data compatible with C APIs, pointer iteration, `gsl::span`, and similar. 
 * Like `std::deque`, **veque** allows fast insertion/deletion from the front of the container
 * Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be **twice as fast**, because there are often two choices for _what data to shift_.
 
 ### Usage
-The complete API documentation may be viewed [here](API.md).
+**The complete API documentation may be viewed [here](API.md).**
 
 The interface for **veque** maintains the entire interface for `std::vector`, allowing **veque** to be considered as a drop-in replacement.  (See [tradeoffs](#tradeoffs))
 
@@ -58,5 +58,4 @@ As a developer, I am not good at naming things.
 `dextor`?
 
 ### To do:
-* Promote configuration constants in the class to template parameters?
 * Perhaps C++14 support?
