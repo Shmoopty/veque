@@ -15,14 +15,15 @@ To jump to the API details that are unique to `veque`, go to the [Capacity](#cap
 | Operations | Invalidated |
 |---|---|
 | All read only operations, swap | Never |
-| clear, operator=, assign | Always |
-| insert, emplace, erase | **Always**.  Consider using the returned iterator |
-| all reserves, shrink_to_fit | If the vector changed capacity, all of them. If not, none |
-| push_back, emplace_back, resize, resize_back | If the vector changed capacity, all of them. If not, only end() |
-| push_front, emplace_front, resize_front | If the vector changed capacity, all of them. If not, only begin() |
-| All resizes | If the vector changed capacity, all of them. If not, only begin() or end() |
-| All pop_backs | The element erased and end() |
-| All pop_fronts | The element erased and begin() |
+| `clear`, `operator=`, `assign` | Always |
+| `insert`, `emplace`, `erase`<br/>using resize traits with `resize_from_closest_side=true` |  **Always**.  Consider using the returned iterator</br>abc |
+| `insert`, `emplace`, `erase`<br/>using resize traits with `resize_from_closest_side=false`| If the new size() is greater than capacity(), all iterators and references are invalidated. Otherwise, only the iterators and references before the insert/erase point remain valid. |
+| all `reserve`s, `shrink_to_fit` | If the vector changed capacity, all of them. If not, none |
+| `push_back`, `emplace_back`, `resize`, `resize_back` | If the new `size()` is greater than `capacity_back()`, all of them. If not, only `end()` |
+| `push_front`, `emplace_front`, `resize_front` | If the new `size()` is greater than `capacity_front()`, all of them. If not, only `begin()` |
+| All `resize`s | If the vector changed capacity, all of them. If not, only `begin()` or `end()` |
+| All `pop_back`s | The element erased and `end()` |
+| All `pop_front`s | The element erased and `begin()` |
 
 ## Member types
   
@@ -43,6 +44,8 @@ To jump to the API details that are unique to `veque`, go to the [Capacity](#cap
 ## Member functions
 
 All constructors match the behavior, complexity, and exception rules of [C++17 `std::vector` constructors](https://en.cppreference.com/w/cpp/container/vector/vector)
+
+Construction from a veque with different `ResizeTraits` is supported.
 
         veque() noexcept ( noexcept(Allocator()) )
         
@@ -68,8 +71,10 @@ All constructors match the behavior, complexity, and exception rules of [C++17 `
 Destructs the container. The destructors of the elements are called and the used storage is deallocated.
 
         ~veque()
-        
+
 All assignment operators match the behavior, complexity, and exception rules of [C++17 `std::vector` assignment operators](https://en.cppreference.com/w/cpp/container/vector/operator%3D)
+
+Assignment from a veque with different `ResizeTraits` is supported.
 
         veque & operator=( const veque & )
         
