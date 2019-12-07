@@ -85,11 +85,15 @@ namespace veque
 
         // Common member functions
         veque() noexcept (noexcept(Allocator()))
-            : _data { 0, Allocator{} }
+            : veque ( Allocator{} )
         {
         }
 
-        explicit veque( const Allocator& ) noexcept;
+        explicit veque( const Allocator& alloc ) noexcept
+            : _data { 0, alloc }
+        {
+        }
+
         explicit veque( size_type n, const Allocator& alloc = Allocator() )
             : veque( allocate_uninitialized_tag{}, n, alloc )
         {
@@ -104,7 +108,7 @@ namespace veque
 
         template< typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value> >
         veque( InputIt first,  InputIt last, const Allocator& alloc = Allocator() )
-            : veque( allocate_uninitialized_tag{}, static_cast<size_type>(std::distance( first, last )), alloc )
+            : veque( allocate_uninitialized_tag{}, static_cast<size_type>( std::distance( first, last ) ), alloc )
         {
             _copy_construct_range( begin(), end(), first );
         }
@@ -194,7 +198,7 @@ namespace veque
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
             || alloc_traits::is_always_equal::value) )
         {
-            return _move_assignment(std::move(other));
+            return _move_assignment( std::move(other) );
         }
             
         template< typename OtherResizeTraits >
@@ -690,14 +694,14 @@ namespace veque
         // Deriving from allocator to leverage empty base optimization
         struct Data : Allocator
         {
-            size_type _allocated = 0;
             T *_storage = nullptr;
+            size_type _allocated = 0;
 
             Data() {}
             Data( size_type capacity, const Allocator & alloc )
                 : Allocator{alloc}
-                , _allocated{capacity}
                 , _storage{ std::allocator_traits<Allocator>::allocate( allocator(), capacity ) }
+                , _allocated{capacity}
             {
             }
             Data( const Allocator & alloc ) : Allocator{alloc} {}
@@ -1001,7 +1005,11 @@ namespace veque
             }
             auto element_count = std::distance( b, e );
             auto start = _mutable_iterator(b);
-            if ( element_count )
+            if ( element_count < 0 )
+            {
+                throw std::runtime_error("X");
+            }
+            else if ( element_count > 0 )
             {
                 auto dest = start - count;
                 if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
@@ -1054,7 +1062,11 @@ namespace veque
                 return start;
             }
             auto element_count = std::distance( b, e );
-            if ( element_count )
+            if ( element_count < 0 )
+            {
+                throw std::runtime_error("X");
+            }
+            else if ( element_count > 0 )
             {
                 if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
                 {
