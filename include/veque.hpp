@@ -668,7 +668,22 @@ namespace veque
             }
             else
             {
-                _swap_without_allocator( std::move(other) );
+                if ( _allocator() == other._allocator() )
+                {
+                    _swap_without_allocator( std::move(other) );
+                }
+                else
+                {
+                    // std::vector would declare this UB.  Allocate compatible storage and make it work.
+                    auto new_this = veque( allocate_uninitialized_tag{}, other.size(), _allocator() );
+                    _nothrow_move_construct_range( new_this.begin(), new_this.end(), other.begin() );
+
+                    auto new_other = veque( allocate_uninitialized_tag{}, size(), other._allocator() );
+                    _nothrow_move_construct_range( new_other.begin(), new_other.end(), begin() );
+
+                    _swap_with_allocator( std::move(new_this) );
+                    other._swap_with_allocator( std::move(new_other) );
+                }
             }
         }
     
@@ -958,10 +973,26 @@ namespace veque
         iterator _insert_storage( const_iterator it, size_type count )
         {
             auto required_size = size() + count;
-            auto can_shift_back = capacity_back() >= required_size && it != begin();
+            auto can_shift_back = capacity_back() >= required_size;
+            if constexpr ( std::ratio_greater_v<_front_realloc,std::ratio<0>> )
+            {
+                if ( can_shift_back && it == begin() )
+                {
+                    // Don't favor shifting entire contents back 
+                    can_shift_back = false;
+                }
+            }
+
             if constexpr ( resize_from_closest_side )
             {
-                auto can_shift_front = capacity_front() >= required_size && it != end();
+                auto can_shift_front = capacity_front() >= required_size;
+                if constexpr ( std::ratio_greater_v<_back_realloc,std::ratio<0>> )
+                {
+                    if ( can_shift_front && it == end() )
+                    {
+                        can_shift_front = false;
+                    }
+                }
 
                 if ( can_shift_back && can_shift_front)
                 {
