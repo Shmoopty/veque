@@ -16,7 +16,7 @@ To jump to the API details that are unique to `veque`, go to the [Capacity](#cap
 |---|---|
 | All read only operations, swap | Never |
 | `clear`, `operator=`, `assign` | Always |
-| `insert`, `emplace`, `erase`<br/>using resize traits with `resize_from_closest_side=true` |  **Always**.  Consider using the returned iterator</br>abc |
+| `insert`, `emplace`, `erase`<br/>using resize traits with `resize_from_closest_side=true` |  **Always**.  Consider using the returned iterator |
 | `insert`, `emplace`, `erase`<br/>using resize traits with `resize_from_closest_side=false`| If the new size() is greater than capacity(), all iterators and references are invalidated. Otherwise, only the iterators and references before the insert/erase point remain valid. |
 | all `reserve`s, `shrink_to_fit` | If the vector changed capacity, all of them. If not, none |
 | `push_back`, `emplace_back`, `resize`, `resize_back` | If the new `size()` is greater than `capacity_back()`, all of them. If not, only `end()` |
