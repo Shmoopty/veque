@@ -25,8 +25,8 @@ namespace veque
     struct fast_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
-        using front_realloc = std::ratio<1>;
-        using back_realloc = std::ratio<1>;
+        using _front_realloc = std::ratio<1>;
+        using _back_realloc = std::ratio<1>;
 
         // If true, arbitrary insert and erase operations are twice the speed of
         // std::vector, but those operations invalidate all iterators
@@ -36,8 +36,8 @@ namespace veque
     struct vector_compatible_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
-        using front_realloc = std::ratio<1>;
-        using back_realloc = std::ratio<1>;
+        using _front_realloc = std::ratio<1>;
+        using _back_realloc = std::ratio<1>;
 
         // If false, veque is a 100% compatible drop-in replacement for
         // std::vector including iterator invalidation rules
@@ -47,8 +47,8 @@ namespace veque
     struct std_vector_traits
     {
         // Reserve storage only at back, like std::vector
-        using front_realloc = std::ratio<0>;
-        using back_realloc = std::ratio<1>;
+        using _front_realloc = std::ratio<0>;
+        using _back_realloc = std::ratio<1>;
 
         // Same iterator invalidation rules as std::vector
         static constexpr auto resize_from_closest_side = false;
@@ -392,7 +392,7 @@ namespace veque
                 // The ssize type's ceiling
                 std::numeric_limits<ssize_type>::max() / sizeof(T),
                 // Ceiling imposed by std::ratio math
-                std::numeric_limits<size_type>::max() / full_realloc::num
+                std::numeric_limits<size_type>::max() / _full_realloc::num
             );
 
             // The allocator's ceiling
@@ -483,9 +483,11 @@ namespace veque
         // Modifiers
         void clear() noexcept
         {
+            using unused_front_ratio = std::ratio_divide<_front_realloc,_unused_realloc>;
+            
             _destroy( begin(), end() );
             _size = 0;
-            _offset = capacity_full() / 2;
+            _offset = capacity_full() * unused_front_ratio::num / unused_front_ratio::den;
         }
 
         iterator insert( const_iterator it, const T & value )
@@ -669,24 +671,26 @@ namespace veque
     
     private:
         
-        using front_realloc = typename ResizeTraits::front_realloc::type;
-        using back_realloc = typename ResizeTraits::back_realloc::type;
+        using _front_realloc = typename ResizeTraits::_front_realloc::type;
+        using _back_realloc = typename ResizeTraits::_back_realloc::type;
+        using _unused_realloc = std::ratio_add< _front_realloc, _back_realloc >;
+        using _full_realloc = std::ratio_add< std::ratio<1>, _unused_realloc >;
+
         static constexpr auto resize_from_closest_side = ResizeTraits::resize_from_closest_side;
 
-        static_assert( std::ratio_greater_equal_v<front_realloc,std::ratio<0>> );
-        static_assert( std::ratio_greater_equal_v<back_realloc,std::ratio<0>> );
+        static_assert( std::ratio_greater_equal_v<_front_realloc,std::ratio<0>> );
+        static_assert( std::ratio_greater_equal_v<_back_realloc,std::ratio<0>> );
+        static_assert( std::ratio_greater_v<_unused_realloc,std::ratio<0>> );
        
         // Confirmation that allocator_traits will only directly call placement new(ptr)T()
-        static constexpr auto calls_default_constructor_directly = 
+        static constexpr auto _calls_default_constructor_directly = 
             std::is_same_v<allocator_type,std::allocator<T>>;
         // Confirmation that allocator_traits will only directly call placement new(ptr)T(const T&)
-        static constexpr auto calls_copy_constructor_directly = 
+        static constexpr auto _calls_copy_constructor_directly = 
             std::is_same_v<allocator_type,std::allocator<T>>;
         // Confirmation that allocator_traits will only directly call ~T()
-        static constexpr auto calls_destructor_directly =
+        static constexpr auto _calls_destructor_directly =
             std::is_same_v<allocator_type,std::allocator<T>>;
-        
-        using full_realloc = std::ratio_add< std::ratio<1>, std::ratio_add< front_realloc, back_realloc > >;
 
         size_type _size = 0;    // Number of elements in use
         size_type _offset = 0;  // Number of uninitialized elements before begin()
@@ -735,8 +739,8 @@ namespace veque
         // Create an uninitialized empty veque, with storage for expected size
         veque( allocate_uninitialized_tag, size_type size, const Allocator & alloc )
             : _size{ size }
-            , _offset{ size * front_realloc::num / front_realloc::den }
-            , _data { size * full_realloc::num / full_realloc::den, alloc }
+            , _offset{ size * _front_realloc::num / _front_realloc::den }
+            , _data { size * _full_realloc::num / _full_realloc::den, alloc }
         {
         }
 
@@ -762,7 +766,7 @@ namespace veque
         // Destroy elements in range
         void _destroy( const_iterator b, const_iterator e )
         {
-            if constexpr ( std::is_trivially_destructible_v<T> && calls_destructor_directly )
+            if constexpr ( std::is_trivially_destructible_v<T> && _calls_destructor_directly )
             {
                 (void)b; (void)e; // Unused
             }
@@ -836,7 +840,7 @@ namespace veque
         template< typename ...Args >
         void _value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
         {
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && sizeof...(args) == 0 && calls_default_constructor_directly )
+            if constexpr ( std::is_trivially_copy_constructible_v<T> && sizeof...(args) == 0 && _calls_default_constructor_directly )
             {
                 std::memset( _mutable_iterator(b), 0, std::distance( b, e ) * sizeof(T) );
             }
@@ -852,7 +856,7 @@ namespace veque
         template< typename InputIt, typename = std::enable_if_t<is_input_iterator<InputIt>::value> >
         void _copy_construct_range( const_iterator b, const_iterator e, InputIt src )
         {
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
+            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
             {
                 std::memcpy( _mutable_iterator(b), src, std::distance( b, e ) * sizeof(T) );
             }
@@ -926,16 +930,16 @@ namespace veque
         // ...and yet-unused space at back of this storage
         void _reallocate_space_at_back( size_type count )
         {
-            auto allocated = count * full_realloc::num / full_realloc::den;
-            auto offset = count * front_realloc::num / front_realloc::den;
+            auto allocated = count * _full_realloc::num / _full_realloc::den;
+            auto offset = count * _front_realloc::num / _front_realloc::den;
             _reallocate( allocated, offset );
         }
 
         // ...and yet-unused space at front of this storage
         void _reallocate_space_at_front( size_type count )
         {
-            auto allocated = count * full_realloc::num / full_realloc::den;
-            auto offset = count - size() + count * front_realloc::num / front_realloc::den;
+            auto allocated = count * _full_realloc::num / _full_realloc::den;
+            auto offset = count - size() + count * _front_realloc::num / _front_realloc::den;
             _reallocate( allocated, offset );
         }
 
@@ -1012,7 +1016,7 @@ namespace veque
             else if ( element_count > 0 )
             {
                 auto dest = start - count;
-                if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
+                if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                 {
                     std::memmove( dest, start, element_count * sizeof(T) );
                 }
@@ -1068,7 +1072,7 @@ namespace veque
             }
             else if ( element_count > 0 )
             {
-                if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
+                if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                 {
                     std::memmove( start + count, start, element_count * sizeof(T) );
                 }
@@ -1157,9 +1161,11 @@ namespace veque
 
         void _reassign_existing_storage( size_type count, const T & value )
         {
+            using ideal_begin_ratio = std::ratio_divide<_front_realloc, _unused_realloc >;
+
             auto size_delta = static_cast<difference_type>( count - size() );
             // The "ideal" begin would put the new data in the center of storage
-            auto ideal_begin = _storage_begin() + (capacity_full() - count) / 2;
+            auto ideal_begin = _storage_begin() + (capacity_full() - count) * ideal_begin_ratio::num / ideal_begin_ratio::den;
 
             if ( size() == 0 )
             {
@@ -1211,7 +1217,7 @@ namespace veque
         // Move-constructs if noexcept, copies otherwise
         void _nothrow_move_construct( iterator dest, iterator src )
         {
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
+            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
             {
                 *dest = *src;
             }
@@ -1226,7 +1232,7 @@ namespace veque
             auto size = std::distance( b, e );
             if ( size )
             {
-                if constexpr ( std::is_trivially_copy_constructible_v<T> && calls_copy_constructor_directly )
+                if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                 {
                     std::memcpy( b, src, size * sizeof(T) );
                 }
