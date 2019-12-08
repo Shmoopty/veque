@@ -22,33 +22,36 @@
 
 namespace veque
 {
+    // Fast resizing behavior
     struct fast_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
-        using _front_realloc = std::ratio<1>;
-        using _back_realloc = std::ratio<1>;
+        using allocation_before_front = std::ratio<1>;
+        using allocation_after_back = std::ratio<1>;
 
         // If true, arbitrary insert and erase operations are twice the speed of
         // std::vector, but those operations invalidate all iterators
         static constexpr auto resize_from_closest_side = true;
    };
     
+    // Resizing behavior that matches std::vector iterator invalidation rules
     struct vector_compatible_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
-        using _front_realloc = std::ratio<1>;
-        using _back_realloc = std::ratio<1>;
+        using allocation_before_front = std::ratio<1>;
+        using allocation_after_back = std::ratio<1>;
 
         // If false, veque is a 100% compatible drop-in replacement for
         // std::vector including iterator invalidation rules
         static constexpr auto resize_from_closest_side = false;
    };
     
+    // Resizing behavior identical to std::vector
     struct std_vector_traits
     {
         // Reserve storage only at back, like std::vector
-        using _front_realloc = std::ratio<0>;
-        using _back_realloc = std::ratio<1>;
+        using allocation_before_front = std::ratio<0>;
+        using allocation_after_back = std::ratio<1>;
 
         // Same iterator invalidation rules as std::vector
         static constexpr auto resize_from_closest_side = false;
@@ -671,8 +674,8 @@ namespace veque
     
     private:
         
-        using _front_realloc = typename ResizeTraits::_front_realloc::type;
-        using _back_realloc = typename ResizeTraits::_back_realloc::type;
+        using _front_realloc = typename ResizeTraits::allocation_before_front::type;
+        using _back_realloc = typename ResizeTraits::allocation_after_back::type;
         using _unused_realloc = std::ratio_add< _front_realloc, _back_realloc >;
         using _full_realloc = std::ratio_add< std::ratio<1>, _unused_realloc >;
 
