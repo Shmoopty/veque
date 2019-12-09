@@ -32,8 +32,8 @@ namespace veque
         // If true, arbitrary insert and erase operations are twice the speed of
         // std::vector, but those operations invalidate all iterators
         static constexpr auto resize_from_closest_side = true;
-   };
-    
+    };
+
     // Resizing behavior that matches std::vector iterator invalidation rules
     struct vector_compatible_resize_traits
     {
@@ -44,8 +44,8 @@ namespace veque
         // If false, veque is a 100% compatible drop-in replacement for
         // std::vector including iterator invalidation rules
         static constexpr auto resize_from_closest_side = false;
-   };
-    
+    };
+
     // Resizing behavior identical to std::vector
     struct std_vector_traits
     {
@@ -55,8 +55,8 @@ namespace veque
 
         // Same iterator invalidation rules as std::vector
         static constexpr auto resize_from_closest_side = false;
-   };
-    
+    };
+
     template< typename T, typename ResizeTraits = fast_resize_traits, typename Allocator = std::allocator<T> >
     class veque
     {
@@ -67,9 +67,9 @@ namespace veque
         struct is_input_iterator<I,typename std::enable_if_t<
             std::is_convertible_v<typename std::iterator_traits<I>::iterator_category,std::input_iterator_tag>>>
             : std::true_type {};
-        
+
         using alloc_traits = std::allocator_traits<Allocator>;
-        
+
     public:
         // Types
         using allocator_type = Allocator;
@@ -129,7 +129,7 @@ namespace veque
         {
             _copy_construct_range( begin(), end(), other.begin() );
         }
-        
+
         template< typename OtherResizeTraits >
         veque( const veque<T,OtherResizeTraits,Allocator> & other )
             : _size{ other._size }
@@ -138,7 +138,7 @@ namespace veque
         {
             _copy_construct_range( begin(), end(), other.begin() );
         }
-        
+
         template< typename OtherResizeTraits >
         veque( const veque<T,OtherResizeTraits,Allocator> & other, const Allocator & alloc )
             : _size{ other._size }
@@ -147,13 +147,13 @@ namespace veque
         {
             _copy_construct_range( begin(), end(), other.begin() );
         }
-        
+
         veque( veque && other ) noexcept
             : _data {}
         {
             _swap_with_allocator( std::move(other) );
         }
-        
+
         template< typename OtherResizeTraits >
         veque( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
             : _data {}
@@ -180,12 +180,12 @@ namespace veque
             }
             _swap_with_allocator( std::move(other) );
         }
-        
+
         ~veque()
         {
             _destroy( begin(), end() );
         }
-        
+
         veque & operator=( const veque & other )
         {
             return _copy_assignment( other );
@@ -203,7 +203,7 @@ namespace veque
         {
             return _move_assignment( std::move(other) );
         }
-            
+
         template< typename OtherResizeTraits >
         veque & operator=( veque<T,OtherResizeTraits,Allocator> && other ) noexcept(
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
@@ -226,7 +226,7 @@ namespace veque
             }
             else
             {
-                _reassign_existing_storage( count, value );        
+                _reassign_existing_storage( count, value );
             }
         }
 
@@ -239,10 +239,10 @@ namespace veque
             }
             else
             {
-                _reassign_existing_storage( first, last );        
+                _reassign_existing_storage( first, last );
             }
         }
-        
+
         void assign( std::initializer_list<T> lst )
         {
             assign( lst.begin(), lst.end() );
@@ -276,7 +276,7 @@ namespace veque
         {
             return *(begin() + idx);
         }
-    
+
         const_reference operator[]( size_type idx ) const
         {
             return *(begin() + idx);
@@ -482,12 +482,12 @@ namespace veque
                 _reallocate( size(), 0 );
             }
         }
-        
+
         // Modifiers
         void clear() noexcept
         {
             using unused_front_ratio = std::ratio_divide<_front_realloc,_unused_realloc>;
-            
+
             _destroy( begin(), end() );
             _size = 0;
             _offset = capacity_full() * unused_front_ratio::num / unused_front_ratio::den;
@@ -523,7 +523,7 @@ namespace veque
         {
             return insert( it, lst.begin(), lst.end() );
         }
-        
+
         template< typename ...Args >
         iterator emplace( const_iterator it, Args && ... args )
         {
@@ -561,7 +561,7 @@ namespace veque
         {
             emplace_back( std::move(value) );
         }
-        
+
         template< typename ... Args>
         reference emplace_back( Args && ...args )
         {
@@ -601,7 +601,7 @@ namespace veque
             alloc_traits::destroy( _allocator(), &back() );
             _move_end( -1 );
         }
-        
+
         // Move-savvy pop back with strong exception guarantee
         T pop_back_element()
         {
@@ -629,7 +629,7 @@ namespace veque
         {
             _resize_front( count );
         }
-    
+
         void resize_front( size_type count, const T & value )
         {
             _resize_front( count, value );
@@ -645,7 +645,7 @@ namespace veque
         {
             _resize_back( count, value );
         }
-        
+
         // To achieve interface parity with std::vector, resize() performs resize_back();
         void resize( size_type count )
         {
@@ -686,9 +686,9 @@ namespace veque
                 }
             }
         }
-    
+
     private:
-        
+
         using _front_realloc = typename ResizeTraits::allocation_before_front::type;
         using _back_realloc = typename ResizeTraits::allocation_after_back::type;
         using _unused_realloc = std::ratio_add< _front_realloc, _back_realloc >;
@@ -699,7 +699,7 @@ namespace veque
         static_assert( std::ratio_greater_equal_v<_front_realloc,std::ratio<0>> );
         static_assert( std::ratio_greater_equal_v<_back_realloc,std::ratio<0>> );
         static_assert( std::ratio_greater_v<_unused_realloc,std::ratio<0>> );
-       
+
         // Confirmation that allocator_traits will only directly call placement new(ptr)T()
         static constexpr auto _calls_default_constructor_directly = 
             std::is_same_v<allocator_type,std::allocator<T>>;
@@ -769,7 +769,7 @@ namespace veque
             , _data { allocated, alloc }
         {
         }
-        
+
         // Acquire Allocator
         Allocator& _allocator() noexcept
         {
@@ -822,7 +822,7 @@ namespace veque
             }
             return *this;
         }
-        
+
         template< typename OtherResizeTraits >
         veque & _move_assignment( veque<T,OtherResizeTraits,Allocator> && other ) noexcept(
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
@@ -844,7 +844,7 @@ namespace veque
                         }
                         else
                         {
-                            _reassign_existing_storage( std::move_iterator(other.begin()), std::move_iterator(other.end()) );       
+                            _reassign_existing_storage( std::move_iterator(other.begin()), std::move_iterator(other.end()) );
                         }
                     }
                     return *this;
@@ -853,7 +853,7 @@ namespace veque
             _swap_without_allocator( std::move(other) );
             return *this;
         }
-        
+
         // Construct elements in range
         template< typename ...Args >
         void _value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
@@ -886,7 +886,7 @@ namespace veque
                 }
             }
         }
-        
+
         template< typename OtherResizeTraits >
         void _swap_with_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
         {
@@ -905,7 +905,7 @@ namespace veque
             std::swap( _data._allocated, other._data._allocated);
             std::swap( _data._storage,   other._data._storage);
         }
-        
+
         template< typename ...Args >
         void _resize_front( size_type count, const Args & ...args )
         {
@@ -978,7 +978,8 @@ namespace veque
             {
                 if ( can_shift_back && it == begin() )
                 {
-                    // Don't favor shifting entire contents back 
+                    // Don't favor shifting entire contents back
+                    // if realloc will create space
                     can_shift_back = false;
                 }
             }
@@ -990,6 +991,8 @@ namespace veque
                 {
                     if ( can_shift_front && it == end() )
                     {
+                        // Don't favor shifting entire contents front
+                        // if realloc will create space
                         can_shift_front = false;
                     }
                 }
@@ -1234,7 +1237,7 @@ namespace veque
             _move_begin( std::distance( begin(), ideal_begin ) );
             _move_end( std::distance( end(), ideal_begin + count ) );
         }
-        
+
         // Casts to T&& or T&, depending on whether move construction is noexcept
         static decltype(auto) _nothrow_construct_move( T & t )
         {
@@ -1279,7 +1282,7 @@ namespace veque
                 }
             }
         }
-        
+
         // Move-assigns if noexcept, copies otherwise
         static void _nothrow_move_assign( iterator dest, iterator src )
         {
@@ -1300,7 +1303,7 @@ namespace veque
                 _nothrow_move_assign( dest, src );
             }
         }
-        
+
         // Adjust begin(), end() iterators
         void _move_begin( difference_type count ) noexcept
         {
