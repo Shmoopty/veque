@@ -239,7 +239,7 @@ template<typename T>
 using PropogatingGrumpyVeque = veque::veque<T,veque::std_vector_traits,PropagatingStatefulAllocator<T>>;
 
 template<typename T>
-using AllocCountingVeque = veque::veque<T,veque::vector_compatible_resize_traits,CountingAllocator<T>>;
+using AllocCountingVeque = veque::veque<T,veque::no_reserve_traits,CountingAllocator<T>>;
 
 template<typename Container>
 constexpr bool is_using_counting_allocator = std::is_same_v< typename Container::allocator_type, CountingAllocator<typename Container::value_type> >;

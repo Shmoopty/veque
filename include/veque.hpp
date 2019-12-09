@@ -22,7 +22,7 @@
 
 namespace veque
 {
-    // Fast resizing behavior
+    // Very fast resizing behavior
     struct fast_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
@@ -34,7 +34,7 @@ namespace veque
         static constexpr auto resize_from_closest_side = true;
     };
 
-    // Resizing behavior that matches std::vector iterator invalidation rules
+    // Match std::vector iterator invalidation rules
     struct vector_compatible_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
@@ -52,6 +52,17 @@ namespace veque
         // Reserve storage only at back, like std::vector
         using allocation_before_front = std::ratio<0>;
         using allocation_after_back = std::ratio<1>;
+
+        // Same iterator invalidation rules as std::vector
+        static constexpr auto resize_from_closest_side = false;
+    };
+
+    // Never reallocate more storage than is needed
+    struct no_reserve_traits
+    {
+        // Any operation requiring a greater size reserves only that size
+        using allocation_before_front = std::ratio<0>;
+        using allocation_after_back = std::ratio<0>;
 
         // Same iterator invalidation rules as std::vector
         static constexpr auto resize_from_closest_side = false;
@@ -88,7 +99,7 @@ namespace veque
 
         // Common member functions
         veque() noexcept (noexcept(Allocator()))
-            : veque ( Allocator{} )
+            : veque( Allocator() )
         {
         }
 
@@ -123,49 +134,39 @@ namespace veque
         }
 
         veque( const veque & other )
-            : _size{ other._size }
-            , _offset{ 0 }
-            , _data { other._size, alloc_traits::select_on_container_copy_construction( other._allocator() ) }
+            : veque( allocate_uninitialized_tag{}, other.size(), alloc_traits::select_on_container_copy_construction( other._allocator() ) )
         {
             _copy_construct_range( begin(), end(), other.begin() );
         }
 
         template< typename OtherResizeTraits >
         veque( const veque<T,OtherResizeTraits,Allocator> & other )
-            : _size{ other._size }
-            , _offset{ 0 }
-            , _data { other._size, alloc_traits::select_on_container_copy_construction( other._allocator() ) }
+            : veque( allocate_uninitialized_tag{}, other.size(), alloc_traits::select_on_container_copy_construction( other._allocator() ) )
         {
             _copy_construct_range( begin(), end(), other.begin() );
         }
 
         template< typename OtherResizeTraits >
         veque( const veque<T,OtherResizeTraits,Allocator> & other, const Allocator & alloc )
-            : _size{ other._size }
-            , _offset{ 0 }
-            , _data { other._size, alloc }
+            : veque( allocate_uninitialized_tag{}, other.size(), alloc )
         {
             _copy_construct_range( begin(), end(), other.begin() );
         }
 
         veque( veque && other ) noexcept
-            : _data {}
         {
             _swap_with_allocator( std::move(other) );
         }
 
         template< typename OtherResizeTraits >
         veque( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
-            : _data {}
         {
             _swap_with_allocator( std::move(other) );
         }
 
         template< typename OtherResizeTraits >
         veque( veque<T,OtherResizeTraits,Allocator> && other, const Allocator & alloc ) noexcept
-            : _size{ 0 }
-            , _offset{ 0 }
-            , _data{ alloc }
+            : veque( alloc )
         {
             if constexpr ( !alloc_traits::is_always_equal::value )
             {
@@ -222,7 +223,7 @@ namespace veque
         {
             if ( count > capacity_full() )
             {
-                _swap_with_allocator( veque( count, value, _allocator() ) );
+                _swap_without_allocator( veque( count, value, _allocator() ) );
             }
             else
             {
@@ -235,7 +236,7 @@ namespace veque
         {
             if ( std::distance( first, last ) > static_cast<difference_type>(capacity_full()) )
             {
-                _swap_with_allocator( veque( first, last, _data.allocator() ) );
+                _swap_without_allocator( veque( first, last, _allocator() ) );
             }
             else
             {
@@ -404,12 +405,7 @@ namespace veque
             return std::min( compile_time_limit, runtime_limit );
         }
 
-        void reserve( size_type count )
-        {
-            reserve( count, count );
-        }
-
-        // Reserve front and back capacity, independently.
+        // Reserve front and back capacity, in one operation.
         void reserve( size_type front, size_type back )
         {
             if ( front > capacity_front() || back > capacity_back() )
@@ -427,28 +423,17 @@ namespace veque
 
         void reserve_front( size_type count )
         {
-            if ( count > capacity_front() )
-            {
-                auto new_full_capacity = capacity_back() - size() + count;
-                if ( new_full_capacity > max_size() )
-                {
-                    throw std::length_error("veque<T,ResizeTraits,Alloc>::reserve_front(" + std::to_string(count) + ") exceeds max_size()");
-                }
-                _reallocate( new_full_capacity, count );
-            }
+            reserve( count, 0 );
         }
 
         void reserve_back( size_type count )
         {
-            if ( count > capacity_back() )
-            {
-                auto new_full_capacity = capacity_front() - size() + count;
-                if ( new_full_capacity > max_size() )
-                {
-                    throw std::length_error("veque<T,ResizeTraits,Alloc>::reserve_back(" + std::to_string(count) + ") exceeds max_size()");
-                }
-                _reallocate( new_full_capacity, _offset );
-            }
+            reserve( 0, count );
+        }
+
+        void reserve( size_type count )
+        {
+            reserve( count, count );
         }
 
         // Returns current size + unused allocated storage before front()
@@ -486,13 +471,16 @@ namespace veque
         // Modifiers
         void clear() noexcept
         {
-            using unused_front_ratio = std::ratio_divide<_front_realloc,_unused_realloc>;
-
             _destroy( begin(), end() );
             _size = 0;
-            _offset = capacity_full() * unused_front_ratio::num / unused_front_ratio::den;
+            _offset = 0;
+            if constexpr ( std::ratio_greater_v<_unused_realloc, std::ratio<0>> )
+            {
+                using unused_front_ratio = std::ratio_divide<_front_realloc,_unused_realloc>;
+                _offset = capacity_full() * unused_front_ratio::num / unused_front_ratio::den;
+            }
         }
-
+        
         iterator insert( const_iterator it, const T & value )
         {
             return emplace( it, value );
@@ -696,9 +684,11 @@ namespace veque
 
         static constexpr auto resize_from_closest_side = ResizeTraits::resize_from_closest_side;
 
+        static_assert( _front_realloc::den > 0  );
+        static_assert( _back_realloc::den > 0  );
         static_assert( std::ratio_greater_equal_v<_front_realloc,std::ratio<0>> );
         static_assert( std::ratio_greater_equal_v<_back_realloc,std::ratio<0>> );
-        static_assert( std::ratio_greater_v<_unused_realloc,std::ratio<0>> );
+        static_assert( std::ratio_greater_equal_v<_unused_realloc,std::ratio<0>> );
 
         // Confirmation that allocator_traits will only directly call placement new(ptr)T()
         static constexpr auto _calls_default_constructor_directly = 
@@ -719,14 +709,13 @@ namespace veque
             T *_storage = nullptr;
             size_type _allocated = 0;
 
-            Data() {}
-            Data( size_type capacity, const Allocator & alloc )
+            Data() = default;
+            Data( size_type size, const Allocator & alloc )
                 : Allocator{alloc}
-                , _storage{ std::allocator_traits<Allocator>::allocate( allocator(), capacity ) }
-                , _allocated{capacity}
+                , _storage{size ? std::allocator_traits<Allocator>::allocate( allocator(), size ) : nullptr}
+                , _allocated{size}
             {
             }
-            Data( const Allocator & alloc ) : Allocator{alloc} {}
             Data( const Data& ) = delete;
             Data( Data && other )
             {
@@ -734,7 +723,10 @@ namespace veque
             }
             ~Data()
             {
-                std::allocator_traits<Allocator>::deallocate( allocator(), _storage, _allocated );
+                if ( _storage )
+                {
+                    std::allocator_traits<Allocator>::deallocate( allocator(), _storage, _allocated );
+                }
             }
             Data& operator=( const Data & ) = delete;
             Data& operator=( Data && other )
@@ -753,14 +745,7 @@ namespace veque
         } _data;
 
         struct allocate_uninitialized_tag {};
-
-        // Create an uninitialized empty veque, with storage for expected size
-        veque( allocate_uninitialized_tag, size_type size, const Allocator & alloc )
-            : _size{ size }
-            , _offset{ size * _front_realloc::num / _front_realloc::den }
-            , _data { size * _full_realloc::num / _full_realloc::den, alloc }
-        {
-        }
+        struct reallocate_uninitialized_tag {};
 
         // Create an uninitialized empty veque, with specified storage params
         veque( allocate_uninitialized_tag, size_type size, size_type allocated, size_type offset, const Allocator & alloc )
@@ -770,6 +755,28 @@ namespace veque
         {
         }
 
+        // Create an uninitialized empty veque, with storage for expected size
+        veque( allocate_uninitialized_tag, size_type size, const Allocator & alloc )
+            : veque( allocate_uninitialized_tag{}, size, size, 0, alloc )
+        {
+        }
+
+        // Create an uninitialized empty veque, with storage for expected reallocated size
+        veque( reallocate_uninitialized_tag, size_type size, const Allocator & alloc )
+            : veque( allocate_uninitialized_tag{}, size, _calc_reallocation(size), _calc_offset(size), alloc )
+        {
+        }
+
+        static constexpr size_type _calc_reallocation( size_type size )
+        {
+            return size * _full_realloc::num / _full_realloc::den;
+        }
+            
+        static constexpr size_type _calc_offset( size_type size )
+        {
+            return size * _front_realloc::num / _front_realloc::den;
+        }
+            
         // Acquire Allocator
         Allocator& _allocator() noexcept
         {
@@ -840,7 +847,7 @@ namespace veque
                     {
                         if ( other.size() > capacity_full() )
                         {
-                            _swap_with_allocator( veque( std::move(other), _allocator() ) );
+                            _swap_without_allocator( veque( std::move(other), _allocator() ) );
                         }
                         else
                         {
@@ -858,9 +865,18 @@ namespace veque
         template< typename ...Args >
         void _value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
         {
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && sizeof...(args) == 0 && _calls_default_constructor_directly )
+            static_assert( sizeof...(args) <= 1 );
+
+            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_default_constructor_directly )
             {
-                std::memset( _mutable_iterator(b), 0, std::distance( b, e ) * sizeof(T) );
+                if constexpr ( sizeof...(args) == 0 )
+                {
+                    std::memset( _mutable_iterator(b), 0, std::distance( b, e ) * sizeof(T) );
+                }
+                else
+                {
+                    std::fill( _mutable_iterator(b), _mutable_iterator(e), args...);
+                }
             }
             else
             {
@@ -948,16 +964,16 @@ namespace veque
         // ...and yet-unused space at back of this storage
         void _reallocate_space_at_back( size_type count )
         {
-            auto allocated = count * _full_realloc::num / _full_realloc::den;
-            auto offset = count * _front_realloc::num / _front_realloc::den;
+            auto allocated = _calc_reallocation(count);
+            auto offset = _calc_offset(count);
             _reallocate( allocated, offset );
         }
 
         // ...and yet-unused space at front of this storage
         void _reallocate_space_at_front( size_type count )
         {
-            auto allocated = count * _full_realloc::num / _full_realloc::den;
-            auto offset = count - size() + count * _front_realloc::num / _front_realloc::den;
+            auto allocated = _calc_reallocation(count);
+            auto offset = count - size() + _calc_offset(count);
             _reallocate( allocated, offset );
         }
 
@@ -966,7 +982,7 @@ namespace veque
         {
             auto replacement = veque( allocate_uninitialized_tag{}, size(), allocated, offset, _allocator() );
             _nothrow_move_construct_range( replacement.begin(), replacement.end(), begin() );
-            _swap_with_allocator( std::move(replacement) );
+            _swap_without_allocator( std::move(replacement) );
         }
 
         // Insert empty space, choosing the most efficient way to shift existing elements
@@ -1023,7 +1039,7 @@ namespace veque
             }
 
             // Insufficient capacity.  Allocate new storage.
-            auto replacement = veque( allocate_uninitialized_tag{}, required_size, _allocator() );
+            auto replacement = veque( reallocate_uninitialized_tag{}, required_size, _allocator() );
             auto index = std::distance( cbegin(), it );
             auto insertion_point = begin() + index;
 
@@ -1198,12 +1214,15 @@ namespace veque
 
         void _reassign_existing_storage( size_type count, const T & value )
         {
-            using ideal_begin_ratio = std::ratio_divide<_front_realloc, _unused_realloc >;
-
             auto size_delta = static_cast<difference_type>( count - size() );
+            auto ideal_begin = _storage_begin();
             // The "ideal" begin would put the new data in the center of storage
-            auto ideal_begin = _storage_begin() + (capacity_full() - count) * ideal_begin_ratio::num / ideal_begin_ratio::den;
-
+            if constexpr ( std::ratio_greater_v<_unused_realloc, std::ratio<0>> )
+            {
+                using ideal_begin_ratio = std::ratio_divide<_front_realloc, _unused_realloc >;
+                ideal_begin += (capacity_full() - count) * ideal_begin_ratio::num / ideal_begin_ratio::den;
+            }
+            
             if ( size() == 0 )
             {
                 // Existing veque is empty.  Construct at the ideal location
