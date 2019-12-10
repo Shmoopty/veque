@@ -13,10 +13,26 @@
 #include <unordered_set> 
 #include <string> 
 #include <functional> 
+#include <tuple> 
 #include "catch.hpp"
 #include "test_types.h"
 
-TEMPLATE_PRODUCT_TEST_CASE( "hashing", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double ) )
+using MyTypes = std::tuple<
+        StdVeque<int,veque::fast_resize_traits>, StdVeque<int,veque::std_vector_traits>, StdVeque<int,veque::no_reserve_traits>, StdVeque<int,front_vector_traits>, 
+        StdVeque<std::string,veque::fast_resize_traits>, StdVeque<std::string,veque::std_vector_traits>, StdVeque<std::string,veque::no_reserve_traits>, StdVeque<std::string,front_vector_traits>, 
+        StdVeque<double,veque::fast_resize_traits>, StdVeque<double,veque::std_vector_traits>, StdVeque<double,veque::no_reserve_traits>, StdVeque<double,front_vector_traits>,
+        GrumpyVeque<int,veque::fast_resize_traits>, GrumpyVeque<int,veque::std_vector_traits>, GrumpyVeque<int,veque::no_reserve_traits>, GrumpyVeque<int,front_vector_traits>, 
+        GrumpyVeque<std::string,veque::fast_resize_traits>, GrumpyVeque<std::string,veque::std_vector_traits>, GrumpyVeque<std::string,veque::no_reserve_traits>, GrumpyVeque<std::string,front_vector_traits>, 
+        GrumpyVeque<double,veque::fast_resize_traits>, GrumpyVeque<double,veque::std_vector_traits>, GrumpyVeque<double,veque::no_reserve_traits>, GrumpyVeque<double,front_vector_traits>,
+        PropogatingGrumpyVeque<int,veque::fast_resize_traits>, PropogatingGrumpyVeque<int,veque::std_vector_traits>, PropogatingGrumpyVeque<int,veque::no_reserve_traits>, PropogatingGrumpyVeque<int,front_vector_traits>, 
+        PropogatingGrumpyVeque<std::string,veque::fast_resize_traits>, PropogatingGrumpyVeque<std::string,veque::std_vector_traits>, PropogatingGrumpyVeque<std::string,veque::no_reserve_traits>, PropogatingGrumpyVeque<std::string,front_vector_traits>, 
+        PropogatingGrumpyVeque<double,veque::fast_resize_traits>, PropogatingGrumpyVeque<double,veque::std_vector_traits>, PropogatingGrumpyVeque<double,veque::no_reserve_traits>, PropogatingGrumpyVeque<double,front_vector_traits>,
+        AllocCountingVeque<int,veque::fast_resize_traits>, AllocCountingVeque<int,veque::std_vector_traits>, AllocCountingVeque<int,veque::no_reserve_traits>, AllocCountingVeque<int,front_vector_traits>, 
+        AllocCountingVeque<std::string,veque::fast_resize_traits>, AllocCountingVeque<std::string,veque::std_vector_traits>, AllocCountingVeque<std::string,veque::no_reserve_traits>, AllocCountingVeque<std::string,front_vector_traits>, 
+        AllocCountingVeque<double,veque::fast_resize_traits>, AllocCountingVeque<double,veque::std_vector_traits>, AllocCountingVeque<double,veque::no_reserve_traits>, AllocCountingVeque<double,front_vector_traits>
+        >;
+
+TEMPLATE_LIST_TEST_CASE( "hashing", "[veque::veque][template]", MyTypes )
 {
     std::unordered_set<TestType> uset;
     

@@ -229,17 +229,29 @@ struct ThrowingMoveObject
     std::string data = std::string( 1024, 'Z' );
 };
 
-template<typename T>
-using StdVeque = veque::veque<T>;
+// Resizing behavior identical to std::vector, but front-allocating
+struct front_vector_traits
+{
+    // Reserve storage only at back, like std::vector
+    using allocation_before_front = std::ratio<1>;
+    using allocation_after_back = std::ratio<0>;
 
-template<typename T>
-using GrumpyVeque = veque::veque<T,veque::fast_resize_traits,StatefulAllocator<T>>;
+    // Same iterator invalidation rules as std::vector
+    static constexpr auto resize_from_closest_side = false;
+};
 
-template<typename T>
-using PropogatingGrumpyVeque = veque::veque<T,veque::std_vector_traits,PropagatingStatefulAllocator<T>>;
 
-template<typename T>
-using AllocCountingVeque = veque::veque<T,veque::no_reserve_traits,CountingAllocator<T>>;
+template<typename T, typename Traits>
+using StdVeque = veque::veque<T,Traits>;
+
+template<typename T, typename Traits>
+using GrumpyVeque = veque::veque<T,Traits,StatefulAllocator<T>>;
+
+template<typename T, typename Traits>
+using PropogatingGrumpyVeque = veque::veque<T,Traits,PropagatingStatefulAllocator<T>>;
+
+template<typename T, typename Traits>
+using AllocCountingVeque = veque::veque<T,Traits,CountingAllocator<T>>;
 
 template<typename Container>
 constexpr bool is_using_counting_allocator = std::is_same_v< typename Container::allocator_type, CountingAllocator<typename Container::value_type> >;
