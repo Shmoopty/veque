@@ -16,7 +16,12 @@
 #include "catch.hpp"
 #include "test_types.h"
 
-TEMPLATE_PRODUCT_TEST_CASE( "reassignment", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (int, std::string, double, std::vector<int> ) )
+TEMPLATE_PRODUCT_TEST_CASE( "reassignment", "[veque::veque][template]", (StdVeque, GrumpyVeque, PropogatingGrumpyVeque, AllocCountingVeque), (
+        (int,veque::fast_resize_traits), (int,veque::std_vector_traits), (int,veque::no_reserve_traits), (int,front_vector_traits), 
+        (std::string,veque::fast_resize_traits), (std::string,veque::std_vector_traits), (std::string,veque::no_reserve_traits), (std::string,front_vector_traits), 
+        (double,veque::fast_resize_traits), (double,veque::std_vector_traits), (double,veque::no_reserve_traits), (double,front_vector_traits), 
+        (std::vector<int>,veque::fast_resize_traits), (std::vector<int>,veque::std_vector_traits), (std::vector<int>,veque::no_reserve_traits), (std::vector<int>,front_vector_traits)
+        ) )
 {
     for ( int i = 0; i < 10'000; ++i )
     {
