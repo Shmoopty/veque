@@ -179,7 +179,7 @@ namespace veque
                     return;
                 }
             }
-            _swap_with_allocator( std::move(other) );
+            _swap_without_allocator( std::move(other) );
         }
 
         ~veque()
@@ -480,7 +480,7 @@ namespace veque
                 _offset = capacity_full() * unused_front_ratio::num / unused_front_ratio::den;
             }
         }
-        
+
         iterator insert( const_iterator it, const T & value )
         {
             return emplace( it, value );
@@ -528,7 +528,7 @@ namespace veque
         iterator erase( const_iterator first, const_iterator last )
         {
             auto count = std::distance( first, last );
-            if constexpr ( resize_from_closest_side )
+            if constexpr ( _resize_from_closest_side )
             {
                 auto elements_before = std::distance( cbegin(), first );
                 auto elements_after = std::distance( last, cend( ) );
@@ -669,8 +669,8 @@ namespace veque
                     auto new_other = veque( allocate_uninitialized_tag{}, size(), other._allocator() );
                     _nothrow_move_construct_range( new_other.begin(), new_other.end(), begin() );
 
-                    _swap_with_allocator( std::move(new_this) );
-                    other._swap_with_allocator( std::move(new_other) );
+                    _swap_without_allocator( std::move(new_this) );
+                    other._swap_without_allocator( std::move(new_other) );
                 }
             }
         }
@@ -682,13 +682,13 @@ namespace veque
         using _unused_realloc = std::ratio_add< _front_realloc, _back_realloc >;
         using _full_realloc = std::ratio_add< std::ratio<1>, _unused_realloc >;
 
-        static constexpr auto resize_from_closest_side = ResizeTraits::resize_from_closest_side;
+        static constexpr auto _resize_from_closest_side = ResizeTraits::resize_from_closest_side;
 
         static_assert( _front_realloc::den > 0  );
         static_assert( _back_realloc::den > 0  );
-        static_assert( std::ratio_greater_equal_v<_front_realloc,std::ratio<0>> );
-        static_assert( std::ratio_greater_equal_v<_back_realloc,std::ratio<0>> );
-        static_assert( std::ratio_greater_equal_v<_unused_realloc,std::ratio<0>> );
+        static_assert( std::ratio_greater_equal_v<_front_realloc,std::ratio<0>>, "Reserving negative space is not well-defined" );
+        static_assert( std::ratio_greater_equal_v<_back_realloc,std::ratio<0>>, "Reserving negative space is not well-defined" );
+        static_assert( std::ratio_greater_equal_v<_unused_realloc,std::ratio<0>>, "Reserving negative space is not well-defined" );
 
         // Confirmation that allocator_traits will only directly call placement new(ptr)T()
         static constexpr auto _calls_default_constructor_directly = 
@@ -771,12 +771,12 @@ namespace veque
         {
             return size * _full_realloc::num / _full_realloc::den;
         }
-            
+
         static constexpr size_type _calc_offset( size_type size )
         {
             return size * _front_realloc::num / _front_realloc::den;
         }
-            
+
         // Acquire Allocator
         Allocator& _allocator() noexcept
         {
@@ -841,7 +841,7 @@ namespace veque
                 {
                     if constexpr ( alloc_traits::propagate_on_container_move_assignment::value )
                     {
-                        _swap_with_allocator( veque( std::move(other), other._allocator() ) );
+                        _swap_with_allocator( std::move(other) );
                     }
                     else
                     {
@@ -865,7 +865,7 @@ namespace veque
         template< typename ...Args >
         void _value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
         {
-            static_assert( sizeof...(args) <= 1 );
+            static_assert( sizeof...(args) <= 1, "This is for default- or copy-constructing" );
 
             if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_default_constructor_directly )
             {
@@ -1000,7 +1000,7 @@ namespace veque
                 }
             }
 
-            if constexpr ( resize_from_closest_side )
+            if constexpr ( _resize_from_closest_side )
             {
                 auto can_shift_front = capacity_front() >= required_size;
                 if constexpr ( std::ratio_greater_v<_back_realloc,std::ratio<0>> )
@@ -1222,11 +1222,11 @@ namespace veque
                 using ideal_begin_ratio = std::ratio_divide<_front_realloc, _unused_realloc >;
                 ideal_begin += (capacity_full() - count) * ideal_begin_ratio::num / ideal_begin_ratio::den;
             }
-            
+
             if ( size() == 0 )
             {
                 // Existing veque is empty.  Construct at the ideal location
-                _value_construct_range( ideal_begin, ideal_begin + count, value );        
+                _value_construct_range( ideal_begin, ideal_begin + count, value );
             }
             else if ( size_delta == 0 )
             {
