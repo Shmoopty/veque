@@ -202,27 +202,23 @@ All other capacity functions match the behavior, complexity, and exception rules
 
 ### Modifiers
 
-Pops and returns back element.  Strong exception safety guaranteed.  Moves element when appropriate
-
     T pop_back_element()
 
-Pops and returns front element.  Strong exception safety guaranteed.  Moves element when appropriate
+> Pops and returns back element.  Strong exception safety guaranteed.  Moves element when appropriate
 
     T pop_front_element()
         
-Resizes the veque, by adding or removing from the front. 
+> Pops and returns front element.  Strong exception safety guaranteed.  Moves element when appropriate
 
     void resize_front( size_type )
-
     void resize_front( size_type, const T & )
 
-Resizes the veque, by adding or removing from the back.  This function behaves identically to `resize()`
+> Resizes the veque, by adding or removing from the front. 
 
     void resize_back( size_type )
-        
     void resize_back( size_type, const T & )
-        
-Adds a new element to the front of the veque
+
+> Resizes the veque, by adding or removing from the back.  This function behaves identically to `resize()`
 
     void push_front( const T & )
         
@@ -231,9 +227,11 @@ Adds a new element to the front of the veque
     template <class ... Args> reference
     emplace_front( Args && ... args )
 
-Removes element at front of the veque
+> Adds a new element to the front of the veque
 
     void pop_front()
+
+> Removes element at front of the veque
 
 All `insert`, `emplace` and `erase` functions perform the same tasks as their `std::vector` counterparts.  **However**,
 * The `veque` may be resized from either end.
