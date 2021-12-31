@@ -14,7 +14,7 @@ A [very fast](performance/main.cpp#L7) C++17 container combining the best featur
 ### Features
 * Like `std::vector`, **veque** is an ordered container in cache-friendly, array-compatible contiguous memory.  That makes the data compatible with C APIs, pointer iteration, `gsl::span`, and similar. 
 * Like `std::deque`, **veque** allows fast insertion/deletion from the front of the container
-* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be **twice as fast**, because there are often two choices for _what data to shift_.
+* Because **veque** can resize from both sides, insertions and erasures from arbitrary locations will be **twice as fast** on average, because there are often two choices for _what data to shift_.
 
 ### Usage
 **The complete API documentation may be viewed [here](API.md).**
