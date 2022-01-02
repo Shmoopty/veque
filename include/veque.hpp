@@ -16,6 +16,7 @@
 #include <iterator>
 #include <limits>
 #include <ratio>
+#include <string>
 #include <type_traits>
 #include <stdexcept>
 #include <utility>
@@ -46,7 +47,7 @@ namespace veque
         static constexpr auto resize_from_closest_side = false;
     };
 
-    // Resizing behavior identical to std::vector
+    // Resizing behavior resembling std::vector
     struct std_vector_traits
     {
         // Reserve storage only at back, like std::vector
