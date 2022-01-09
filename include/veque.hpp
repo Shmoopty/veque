@@ -47,7 +47,7 @@ namespace veque
         static constexpr auto resize_from_closest_side = false;
     };
 
-    // Resizing behavior resembling std::vector
+    // Resizing behavior resembling std::vector.  Also ideal for queue-like push_back/pop_front behavior.
     struct std_vector_traits
     {
         // Reserve storage only at back, like std::vector
@@ -505,7 +505,7 @@ namespace veque
 
         iterator erase( const_iterator it )
         {
-            return erase( it, it + 1 );
+            return erase( it, std::next(it) );
         }
 
         iterator erase( const_iterator b, const_iterator e )
@@ -517,10 +517,14 @@ namespace veque
                 auto elements_after = std::distance( e, cend( ) );
                 if (  elements_before < elements_after )
                 {
-                    return _shift_back( begin(), b, count );
+                    _shift_back( begin(), b, count );
+                    _move_begin( count );
+                    return _mutable_iterator(e);
                 }
             }
-            return _shift_front( e, end(), count );
+            _shift_front( e, end(), count );
+            _move_end(-count);
+            return _mutable_iterator(b);
         }
 
         void push_back( const T & value )
@@ -1021,20 +1025,44 @@ namespace veque
         // ...and yet-unused space at back of this storage
         void _reallocate_space_at_back( size_type count )
         {
-            auto allocated = _calc_reallocation(count);
-            auto offset = _calc_offset(count);
-            _reallocate( allocated, offset );
+            auto storage_needed = _calc_reallocation(count);
+            auto current_capacity = capacity_full();
+            auto new_offset = _calc_offset(count);
+            if ( storage_needed <= current_capacity )
+            {
+                // Shift elements toward front
+                auto distance = _offset - new_offset;
+                _shift_front( begin(), end(), distance  );
+                _move_begin(-distance);
+                _move_end(-distance);
+            }
+            else
+            {
+                _reallocate( storage_needed, new_offset );
+            }
         }
-
+        
         // ...and yet-unused space at front of this storage
         void _reallocate_space_at_front( size_type count )
         {
-            auto allocated = _calc_reallocation(count);
-            auto offset = count - size() + _calc_offset(count);
-            _reallocate( allocated, offset );
+            auto storage_needed = _calc_reallocation(count);
+            auto current_capacity = capacity_full();
+            auto new_offset = count - size() + _calc_offset(count);
+            if ( storage_needed <= current_capacity )
+            {
+                // Shift elements toward back
+                auto distance = new_offset - _offset;
+                _shift_back( begin(), end(), distance );
+                _move_begin(distance);
+                _move_end(distance);
+            }
+            else
+            {
+                _reallocate( storage_needed, new_offset );
+            }
         }
-
-        // Move vector to new storage, with specified capacity
+        
+        // Move veque to new storage, with specified capacity
         void _reallocate( size_type allocated, size_type offset )
         {
             auto replacement = veque( _allocate_uninitialized_tag{}, size(), allocated, offset, _allocator() );
@@ -1087,12 +1115,16 @@ namespace veque
 
                 if ( can_shift_front )
                 {
-                    return _shift_front( begin(), it, count );
+                    _shift_front( begin(), it, count );
+                    _move_begin( -count );
+                    return _mutable_iterator(it) - count;
                 }
             }
             if ( can_shift_back )
             {
-                return _shift_back( it, end(), count );
+                _shift_back( it, end(), count );
+                _move_end( count );
+                return _mutable_iterator(it);
             }
 
             // Insufficient capacity.  Allocate new storage.
@@ -1107,23 +1139,18 @@ namespace veque
         }
 
         // Moves a valid subrange in the front direction.
-        // Vector will grow, if range moves past begin().
-        // Vector will shrink if range includes end().
+        // Veque will grow, if range moves past begin().
+        // Veque will shrink if range includes end().
         // Returns iterator to beginning of destructed gap
-        iterator _shift_front( const_iterator b, const_iterator e, size_type count )
+        void _shift_front( const_iterator b, const_iterator e, size_type count )
         {
             if ( e == begin() )
             {
-                _move_begin( -count );
-                return begin();
+                return;
             }
             auto element_count = std::distance( b, e );
             auto start = _mutable_iterator(b);
-            if ( element_count < 0 )
-            {
-                throw std::runtime_error("X");
-            }
-            else if ( element_count > 0 )
+            if ( element_count > 0 )
             {
                 auto dest = start - count;
                 if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
@@ -1145,42 +1172,22 @@ namespace veque
                 }
             }
             _destroy( std::max( cbegin(), e - count ), e );
-            auto new_elements_at_front = static_cast<difference_type>(cbegin() - b + count);
-            auto range_includes_end = (e == end());
-
-            // If range includes end(), veque has shrunk
-            if ( range_includes_end )
-            {
-                _move_end( -count );
-            }
-            // Otherwise, if range moves before begin(), veque has grown
-            else if ( new_elements_at_front > 0 )
-            {
-                _move_begin( -new_elements_at_front );
-            }
-
-            return _mutable_iterator(e) - count;
         }
 
-        // Moves a range towards the back.  Vector will grow, if needed.  Vacated elements are destructed.
+        // Moves a range towards the back.  Veque will grow, if needed.  Vacated elements are destructed.
         // Moves a valid subrange in the back direction.
-        // Vector will grow, if range moves past end().
-        // Vector will shrink if range includes begin().
+        // Veque will grow, if range moves past end().
+        // Veque will shrink if range includes begin().
         // Returns iterator to beginning of destructed gap
-        iterator _shift_back( const_iterator b, const_iterator e, size_type count )
+        void _shift_back( const_iterator b, const_iterator e, size_type count )
         {
             auto start = _mutable_iterator(b); 
             if ( b == end() )
             {
-                _move_end( count );
-                return start;
+                return;
             }
             auto element_count = std::distance( b, e );
-            if ( element_count < 0 )
-            {
-                throw std::runtime_error("X");
-            }
-            else if ( element_count > 0 )
+            if ( element_count > 0 )
             {
                 if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                 {
@@ -1204,21 +1211,6 @@ namespace veque
                 }
             }
             _destroy( b, std::min( cend(), b + count ) );
-            difference_type new_elements_at_back = e - end() + count;
-            auto range_includes_begin = (b == begin());
-
-            // If range moves after end(), veque has grown
-            if ( new_elements_at_back > 0 )
-            {
-                _move_end( new_elements_at_back );
-            }
-            // Otherwise, if range includes begin(), veque has shrunk
-            else if ( range_includes_begin )
-            {
-                _move_begin( count );
-            }
-
-            return start;
         }
 
         // Assigns a fitting range of new elements to currently held storage.
