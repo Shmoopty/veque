@@ -733,7 +733,7 @@ namespace veque
 
         template< typename InputIt >
         veque( InputIt b, InputIt e, const Allocator & alloc, std::input_iterator_tag )
-            : veque{}
+            : veque{alloc}
         {
             for ( ; b != e; ++b )
             {
@@ -1297,11 +1297,10 @@ namespace veque
             {
                 // New size is larger.  Copy-assign all existing elements, placing newly
                 // constructed elements so final store is as close to center as possible
-                ideal_begin = std::clamp( ideal_begin, end() - count, begin() );
-
+                ideal_begin += _calc_offset(capacity_full() - count) / 2;
                 _value_construct_range( ideal_begin, begin(), value );
                 std::fill( begin(), end(), value );
-                _value_construct_range( end(), begin() + count, value );
+                _value_construct_range( end(), ideal_begin + count, value );
             }
             _move_begin( std::distance( begin(), ideal_begin ) );
             _move_end( std::distance( end(), ideal_begin + count ) );
