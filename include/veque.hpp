@@ -1266,7 +1266,7 @@ namespace veque
             if (size)
             {
                 if constexpr (std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly)
-                    std::memcpy(dest, b, size * sizeof(T));
+                    std::memcpy(reinterpret_cast<void *>(dest), b, size * sizeof(T));
                 else
                 {
                     for (; b != e; ++dest, ++b)
