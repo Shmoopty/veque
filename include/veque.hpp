@@ -157,7 +157,7 @@ namespace veque
         }
 
         template< typename OtherResizeTraits >
-        veque( veque<T,OtherResizeTraits,Allocator> && other, const Allocator & alloc ) noexcept
+        veque( veque<T,OtherResizeTraits,Allocator> && other, const Allocator & alloc )
             : veque( alloc )
         {
             if constexpr ( !alloc_traits::is_always_equal::value )
@@ -877,7 +877,11 @@ namespace veque
             {
                 if constexpr ( sizeof...(args) == 0 )
                 {
-                    std::memset( _mutable_iterator(b), 0, std::distance( b, e ) * sizeof(T) );
+                    auto count = std::distance( b, e );
+                    if ( count )
+                    {
+                        std::memset( _mutable_iterator(b), 0, count * sizeof(T) );
+                    }
                 }
                 else
                 {
@@ -894,12 +898,16 @@ namespace veque
         }
 
         template< typename It >
-        void _copy_construct_range( It b, It e, const_iterator dest )
+        void _copy_construct_range( It b, It e, iterator dest )
         {
             static_assert( std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,std::forward_iterator_tag> );
             if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
             {
-                std::memcpy( _mutable_iterator(dest), b, std::distance( b, e ) * sizeof(T) );
+                auto count = std::distance( b, e );
+                if ( count )
+                {
+                    std::memcpy( dest, b, count * sizeof(T) );
+                }
             }
             else
             {
@@ -961,7 +969,7 @@ namespace veque
         {
             // Input Iterators require a single-pass solution
             auto allocated = veque( b, e );
-            _insert( it, allocated.begin(), allocated.end() );
+            return _insert( it, allocated.begin(), allocated.end() );
         }
 
         template< typename OtherResizeTraits >
@@ -1297,7 +1305,7 @@ namespace veque
             {
                 // New size is larger.  Copy-assign all existing elements, placing newly
                 // constructed elements so final store is as close to center as possible
-                ideal_begin += _calc_offset(capacity_full() - count) / 2;
+                ideal_begin = std::clamp( ideal_begin, end() - count, begin() );
                 _value_construct_range( ideal_begin, begin(), value );
                 std::fill( begin(), end(), value );
                 _value_construct_range( end(), ideal_begin + count, value );
