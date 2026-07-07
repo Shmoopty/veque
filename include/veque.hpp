@@ -1484,13 +1484,42 @@ namespace std
     {
         size_t operator()( const veque::veque<T,ResizeTraits,Alloc> & v ) const
         {
+            // Width-appropriate MurmurHash3 avalanche finalizer.  This is
+            // applied to each element's hash and to the final accumulator, so
+            // that low-bit differences (e.g. from identity std::hash<int>)
+            // propagate across the full width of size_t.
+            constexpr auto mix = []( size_t h ) noexcept
+            {
+                if constexpr ( sizeof(size_t) == 8 )
+                {
+                    h ^= h >> 33;
+                    h *= static_cast<size_t>(0xff51afd7ed558ccdULL);
+                    h ^= h >> 33;
+                    h *= static_cast<size_t>(0xc4ceb9fe1a85ec53ULL);
+                    h ^= h >> 33;
+                }
+                else
+                {
+                    h ^= h >> 16;
+                    h *= static_cast<size_t>(0x85ebca6bU);
+                    h ^= h >> 13;
+                    h *= static_cast<size_t>(0xc2b2ae35U);
+                    h ^= h >> 16;
+                }
+                return h;
+            };
+            // Golden-ratio constant, sized to size_t.
+            constexpr size_t golden = ( sizeof(size_t) == 8 )
+                ? static_cast<size_t>(0x9e3779b97f4a7c15ULL)
+                : static_cast<size_t>(0x9e3779b9U);
+
             size_t hash = 0;
             auto hasher = std::hash<T>();
             for ( auto && val : v )
             {
-                hash ^= hasher(val) + 0x9e3779b9 + (hash<<6) + (hash>>2);
+                hash ^= mix( hasher(val) ) + golden + (hash << 6) + (hash >> 2);
             }
-            return hash;
+            return mix( hash );
         }
     };
 }
