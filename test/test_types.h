@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <deque>
+#include <cstring>
 #include "veque.hpp"
 
 // An allocator that is stateful, unlikely to be equal to another, and aware of being mismatched
@@ -43,8 +44,9 @@ struct StatefulAllocator
     T* allocate( std::size_t n )
     {
         std::byte * ptr = reinterpret_cast<std::byte*>( std::malloc( n * sizeof(T) + 2 * barrier_size ) );
-        *reinterpret_cast<std::uint64_t*>(ptr) = barrier;
-        *reinterpret_cast<std::uint64_t*>(ptr + n * sizeof(T) + barrier_size) = barrier;
+        const std::uint64_t b = barrier;
+        std::memcpy( ptr, &b, sizeof(b) );
+        std::memcpy( ptr + n * sizeof(T) + barrier_size, &b, sizeof(b) );
         return reinterpret_cast<T*>(ptr + barrier_size);
     }
 
@@ -53,11 +55,11 @@ struct StatefulAllocator
         if ( p )
         {
             std::byte * ptr = reinterpret_cast<std::byte*>(p) - barrier_size;
-            if ( *reinterpret_cast<std::uint64_t*>(ptr) != barrier )
-            {
-                throw std::runtime_error{"StatefulAllocator mismatch"};
-            }
-            if ( *reinterpret_cast<std::uint64_t*>(ptr + n * sizeof(T) + barrier_size) != barrier )
+            const std::uint64_t b = barrier;
+            std::uint64_t front_barrier, back_barrier;
+            std::memcpy( &front_barrier, ptr, sizeof(front_barrier) );
+            std::memcpy( &back_barrier, ptr + n * sizeof(T) + barrier_size, sizeof(back_barrier) );
+            if ( front_barrier != b || back_barrier != b )
             {
                 throw std::runtime_error{"StatefulAllocator mismatch"};
             }

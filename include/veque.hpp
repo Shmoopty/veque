@@ -664,6 +664,11 @@ namespace veque
 
     private:
 
+        // Every veque instantiation is a friend, so that operations between
+        // veques with differing ResizeTraits can access each other's internals.
+        template< typename OtherT, typename OtherResizeTraits, typename OtherAllocator >
+        friend class veque;
+
         using _front_realloc = typename ResizeTraits::allocation_before_front::type;
         using _back_realloc = typename ResizeTraits::allocation_after_back::type;
         using _unused_realloc = std::ratio_add< _front_realloc, _back_realloc >;
@@ -901,7 +906,10 @@ namespace veque
         void _copy_construct_range( It b, It e, iterator dest )
         {
             static_assert( std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,std::forward_iterator_tag> );
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
+            // The memcpy fast path requires the source to be a raw pointer; a
+            // foreign iterator (e.g. std::vector's) is not necessarily
+            // contiguous, so route it through element-wise construction.
+            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly && std::is_pointer_v<It> )
             {
                 auto count = std::distance( b, e );
                 if ( count )
@@ -975,10 +983,19 @@ namespace veque
         template< typename OtherResizeTraits >
         void _swap_with_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
         {
-            // Swap everything
-            std::swap( _size,      other._size );
-            std::swap( _offset,    other._offset );
-            std::swap( _data,      other._data );
+            // Swap everything.  Members are swapped individually rather than
+            // swapping the whole Data, because Data is a distinct type for each
+            // veque instantiation (it is nested), so a differing-ResizeTraits
+            // other has an incompatible Data type.
+            using std::swap;
+            swap( _size,             other._size );
+            swap( _offset,           other._offset );
+            swap( _data._allocated,  other._data._allocated );
+            swap( _data._storage,    other._data._storage );
+            if constexpr ( ! std::is_empty_v<Allocator> )
+            {
+                swap( _allocator(), other._allocator() );
+            }
         }
 
         template< typename OtherResizeTraits >
