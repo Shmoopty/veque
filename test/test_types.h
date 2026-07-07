@@ -259,30 +259,30 @@ constexpr bool is_using_counting_allocator = std::is_same_v< typename Container:
 
 // Sample data, each in increasing comparison order
 template<typename T, size_t index> const T val;
-template<> const int val<int,0> = 0;
-template<> const int val<int,1> = 1;
-template<> const int val<int,2> = 2;
-template<> const int val<int,3> = 3;
-template<> const int val<int,4> = 4;
-template<> const int val<int,5> = 5;
-template<> const std::string val<std::string,0> = std::string(100, 'A');
-template<> const std::string val<std::string,1> = std::string(200, 'B');
-template<> const std::string val<std::string,2> = std::string(300, 'C');
-template<> const std::string val<std::string,3> = std::string(400, 'D');
-template<> const std::string val<std::string,4> = std::string(500, 'E');
-template<> const std::string val<std::string,5> = std::string(600, 'F');
-template<> const double val<double,0> = 00.0;
-template<> const double val<double,1> = 11.0;
-template<> const double val<double,2> = 22.0;
-template<> const double val<double,3> = 33.0;
-template<> const double val<double,4> = 44.0;
-template<> const double val<double,5> = 55.0;
-template<> const std::vector<int> val<std::vector<int>,0> = { 0, 1, 2 };
-template<> const std::vector<int> val<std::vector<int>,1> = { 1, 2, 3 };
-template<> const std::vector<int> val<std::vector<int>,2> = { 2, 3, 4 };
-template<> const std::vector<int> val<std::vector<int>,3> = { 3, 4, 5 };
-template<> const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
-template<> const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
+template<> inline const int val<int,0> = 0;
+template<> inline const int val<int,1> = 1;
+template<> inline const int val<int,2> = 2;
+template<> inline const int val<int,3> = 3;
+template<> inline const int val<int,4> = 4;
+template<> inline const int val<int,5> = 5;
+template<> inline const std::string val<std::string,0> = std::string(100, 'A');
+template<> inline const std::string val<std::string,1> = std::string(200, 'B');
+template<> inline const std::string val<std::string,2> = std::string(300, 'C');
+template<> inline const std::string val<std::string,3> = std::string(400, 'D');
+template<> inline const std::string val<std::string,4> = std::string(500, 'E');
+template<> inline const std::string val<std::string,5> = std::string(600, 'F');
+template<> inline const double val<double,0> = 00.0;
+template<> inline const double val<double,1> = 11.0;
+template<> inline const double val<double,2> = 22.0;
+template<> inline const double val<double,3> = 33.0;
+template<> inline const double val<double,4> = 44.0;
+template<> inline const double val<double,5> = 55.0;
+template<> inline const std::vector<int> val<std::vector<int>,0> = { 0, 1, 2 };
+template<> inline const std::vector<int> val<std::vector<int>,1> = { 1, 2, 3 };
+template<> inline const std::vector<int> val<std::vector<int>,2> = { 2, 3, 4 };
+template<> inline const std::vector<int> val<std::vector<int>,3> = { 3, 4, 5 };
+template<> inline const std::vector<int> val<std::vector<int>,4> = { 4, 5, 6 };
+template<> inline const std::vector<int> val<std::vector<int>,5> = { 6, 7, 8 };
 
 
 #endif // VEQUE_TEST_TYPES_H
