@@ -7,7 +7,7 @@
  * plus a variety of empty / zero-length operations.  The in-place grow
  * branch of assign(count, value) was previously uncovered.
  *
- *  Copyright (C) 2019 Drew Dormann
+ *  Copyright (C) 2019-2026 Drew Dormann
  *
  */
 

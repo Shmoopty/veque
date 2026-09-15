@@ -2,7 +2,7 @@
  *
  * veque performance test
  *
- * Copyright (C) 2019 Drew Dormann
+ * Copyright (C) 2019-2026 Drew Dormann
  *
  * SAMPLE OUTPUT (g++-9 -O3)
 
