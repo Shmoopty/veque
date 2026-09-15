@@ -6,7 +6,7 @@
  * mismatched-stateful-allocator branches of the extended-move constructor,
  * copy/move assignment and swap, and a few error / capacity edge paths.
  *
- *  Copyright (C) 2019 Drew Dormann
+ *  Copyright (C) 2019-2026 Drew Dormann
  *
  */
 

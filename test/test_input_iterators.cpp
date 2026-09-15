@@ -6,7 +6,7 @@
  * constructor, assign(), and insert().  These overloads were previously
  * uncovered by the suite.
  *
- *  Copyright (C) 2019 Drew Dormann
+ *  Copyright (C) 2019-2026 Drew Dormann
  *
  */
 

@@ -1,9 +1,14 @@
 /*
  * veque.hpp
  *
- * Efficient generic C++ container combining useful features of std::vector and std::deque
+ * Efficient generic C++ container - really good for fast. small queues -
+ * has all the front() and back() functionality of std::deque, but elements are stored contiguously, like std::vector.
  *
- * Copyright (C) 2019 Drew Dormann
+ * This container is smart enough to retain its storage if, e.g., push_back() and pop_front() are occurring
+ * in roughly equal number.
+ *
+ * Copyright (C) 2019-2026 Drew Dormann
+ * Boost Software License - Version 1.0 - August 17th, 2003
  *
  */
 
@@ -11,10 +16,12 @@
 #define VEQUE_HEADER_GUARD
 
 #include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <cstring>
 #include <iterator>
 #include <limits>
+#include <ranges>
 #include <ratio>
 #include <string>
 #include <type_traits>
@@ -35,7 +42,7 @@ namespace veque
         static constexpr auto resize_from_closest_side = true;
     };
 
-    // Match std::vector iterator invalidation rules
+    // Match std::vector iterator invalidation rules - only invalidate elements *after* a change
     struct vector_compatible_resize_traits
     {
         // Relative to size(), amount of unused space to reserve when reallocating
@@ -69,7 +76,34 @@ namespace veque
         static constexpr auto resize_from_closest_side = false;
     };
 
-    template< typename T, typename ResizeTraits = fast_resize_traits, typename Allocator = std::allocator<T> >
+    // Only a std::ratio deduces to itself through CTAD.
+    template< typename T >
+    concept is_ratio = requires( T x ) { { std::ratio{x} } -> std::same_as<std::remove_cv_t<T>>; };
+
+    // The requirements on a ResizeTraits: how much unused storage to reserve
+    // at each end, and whether arbitrary insert and erase may shift elements
+    // toward the closer end.
+    //
+    // The allocations must be std::ratio instantiations, not merely
+    // ratio-shaped: std::ratio arithmetic static_asserts on anything else, so
+    // a duck-typed num/den pair fails deep inside <ratio> rather than here.
+    // Sign and denominator are validated separately, within veque itself.
+    template< typename Traits >
+    concept resize_traits = requires
+    {
+        requires is_ratio< typename Traits::allocation_before_front >;
+        requires is_ratio< typename Traits::allocation_after_back >;
+        { Traits::resize_from_closest_side } -> std::convertible_to<bool>;
+    };
+
+    // A range whose elements can be used to build a T.  Mirrors the
+    // standard's exposition-only container-compatible-range.
+    template< typename R, typename T >
+    concept container_compatible_range =
+        std::ranges::input_range<R>
+        && std::convertible_to< std::ranges::range_reference_t<R>, T >;
+
+    template< typename T, resize_traits ResizeTraits = fast_resize_traits, typename Allocator = std::allocator<T> >
     class veque
     {
     public:
@@ -91,73 +125,86 @@ namespace veque
         using ssize_type = std::ptrdiff_t;
 
         // Common member functions
-        veque() noexcept ( noexcept(Allocator()) )
+        constexpr veque() noexcept ( noexcept(Allocator()) )
             : veque( Allocator() )
         {
         }
 
-        explicit veque( const Allocator& alloc ) noexcept
+        explicit constexpr veque( const Allocator& alloc ) noexcept
             : _data { 0, alloc }
         {
         }
 
-        explicit veque( size_type n, const Allocator& alloc = Allocator() )
+        explicit constexpr veque( size_type n, const Allocator& alloc = Allocator() )
             : veque( _allocate_uninitialized_tag{}, n, alloc )
         {
             _value_construct_range( begin(), end() );
         }
 
-        veque( size_type n, const T &value, const Allocator& alloc = Allocator() )
+        constexpr veque( size_type n, const T &value, const Allocator& alloc = Allocator() )
             : veque( _allocate_uninitialized_tag{}, n, alloc )
         {
             _value_construct_range( begin(), end(), value );
         }
 
-        template< typename InputIt, typename ItCat = typename std::iterator_traits<InputIt>::iterator_category >
-        veque( InputIt b,  InputIt e, const Allocator& alloc = Allocator() )
-            : veque( b, e, alloc, ItCat{} )
+        template< std::input_iterator InputIt >
+        constexpr veque( InputIt b,  InputIt e, const Allocator& alloc = Allocator() )
+            : veque( b, e, alloc, _pass_tag_for<InputIt>{} )
         {
         }
 
-        veque( std::initializer_list<T> lst, const Allocator& alloc = Allocator() )
+        constexpr veque( std::initializer_list<T> lst, const Allocator& alloc = Allocator() )
             : veque( _allocate_uninitialized_tag{}, lst.size(), alloc )
         {
             _copy_construct_range( lst.begin(), lst.end(), begin() );
         }
 
-        veque( const veque & other )
+#ifdef __cpp_lib_containers_ranges
+        // Unlike the iterator pair, this accepts a range whose end() is a
+        // sentinel of a different type -- which is most pipelines ending in
+        // views::take or views::filter.  std::from_range_t is C++23; the
+        // range members below need only C++20 and are always available.
+        template< container_compatible_range<T> R >
+        constexpr veque( std::from_range_t, R && rg, const Allocator & alloc = Allocator() )
+            : veque( alloc )
+        {
+            append_range( std::forward<R>(rg) );
+        }
+#endif
+
+        constexpr veque( const veque & other )
             : veque( _allocate_uninitialized_tag{}, other.size(), alloc_traits::select_on_container_copy_construction( other._allocator() ) )
         {
             _copy_construct_range( other.begin(), other.end(), begin() );
         }
 
         template< typename OtherResizeTraits >
-        veque( const veque<T,OtherResizeTraits,Allocator> & other )
+        constexpr veque( const veque<T,OtherResizeTraits,Allocator> & other )
             : veque( _allocate_uninitialized_tag{}, other.size(), alloc_traits::select_on_container_copy_construction( other._allocator() ) )
         {
             _copy_construct_range( other.begin(), other.end(), begin() );
         }
 
         template< typename OtherResizeTraits >
-        veque( const veque<T,OtherResizeTraits,Allocator> & other, const Allocator & alloc )
+        constexpr veque( const veque<T,OtherResizeTraits,Allocator> & other, const Allocator & alloc )
             : veque( _allocate_uninitialized_tag{}, other.size(), alloc )
         {
             _copy_construct_range( other.begin(), other.end(), begin() );
         }
 
-        veque( veque && other ) noexcept
+        constexpr veque( veque && other ) noexcept
         {
             _swap_with_allocator( std::move(other) );
         }
 
         template< typename OtherResizeTraits >
-        veque( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
+        constexpr veque( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
         {
             _swap_with_allocator( std::move(other) );
         }
 
         template< typename OtherResizeTraits >
-        veque( veque<T,OtherResizeTraits,Allocator> && other, const Allocator & alloc )
+        constexpr veque( veque<T,OtherResizeTraits,Allocator> && other, const Allocator & alloc )
             : veque( alloc )
         {
             if constexpr ( !alloc_traits::is_always_equal::value )
@@ -174,23 +221,23 @@ namespace veque
             _swap_without_allocator( std::move(other) );
         }
 
-        ~veque()
+        constexpr ~veque()
         {
             _destroy( begin(), end() );
         }
 
-        veque & operator=( const veque & other )
+        constexpr veque & operator=( const veque & other )
         {
             return _copy_assignment( other );
         }
 
         template< typename OtherResizeTraits >
-        veque & operator=( const veque<T,OtherResizeTraits,Allocator> & other )
+        constexpr veque & operator=( const veque<T,OtherResizeTraits,Allocator> & other )
         {
             return _copy_assignment( other );
         }
 
-        veque & operator=( veque && other ) noexcept(
+        constexpr veque & operator=( veque && other ) noexcept(
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
             || alloc_traits::is_always_equal::value) )
         {
@@ -198,20 +245,20 @@ namespace veque
         }
 
         template< typename OtherResizeTraits >
-        veque & operator=( veque<T,OtherResizeTraits,Allocator> && other ) noexcept(
+        constexpr veque & operator=( veque<T,OtherResizeTraits,Allocator> && other ) noexcept(
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
             || alloc_traits::is_always_equal::value) )
         {
             return _move_assignment( std::move(other) );
         }
 
-        veque & operator=( std::initializer_list<T> lst )
+        constexpr veque & operator=( std::initializer_list<T> lst )
         {
             _assign( lst.begin(), lst.end() );
             return *this;
         }
 
-        void assign( size_type count, const T &value )
+        constexpr void assign( size_type count, const T &value )
         {
             if ( count > capacity_full() )
             {
@@ -223,24 +270,41 @@ namespace veque
             }
         }
 
-        template< typename InputIt, typename ItCat = typename std::iterator_traits<InputIt>::iterator_category >
-        void assign( InputIt b, InputIt e )
+        template< std::input_iterator InputIt >
+        constexpr void assign( InputIt b, InputIt e )
         {
-            _assign( b, e, ItCat{} );
+            _assign( b, e, _pass_tag_for<InputIt>{} );
         }
 
-        void assign( std::initializer_list<T> lst )
+        constexpr void assign( std::initializer_list<T> lst )
         {
             _assign( lst.begin(), lst.end() );
         }
 
-        allocator_type get_allocator() const
+        template< container_compatible_range<T> R >
+        constexpr void assign_range( R && rg )
+        {
+            if constexpr ( std::ranges::forward_range<R> )
+            {
+                // views::common makes begin() and end() the same type, so a
+                // sentinel range can reuse the existing storage too.
+                auto common = std::views::common( std::forward<R>(rg) );
+                _assign( std::ranges::begin(common), std::ranges::end(common) );
+            }
+            else
+            {
+                clear();
+                append_range( std::forward<R>(rg) );
+            }
+        }
+
+        constexpr allocator_type get_allocator() const
         {
             return _allocator();
         }
 
         // Element access
-        reference at( size_type idx )
+        constexpr reference at( size_type idx )
         {
             if ( idx >= size() )
             {
@@ -249,7 +313,7 @@ namespace veque
             return (*this)[idx];
         }
 
-        const_reference at( size_type idx ) const
+        constexpr const_reference at( size_type idx ) const
         {
             if ( idx >= size() )
             {
@@ -258,124 +322,124 @@ namespace veque
             return (*this)[idx];
         }
 
-        reference operator[]( size_type idx )
+        constexpr reference operator[]( size_type idx )
         {
             return *(begin() + idx);
         }
 
-        const_reference operator[]( size_type idx ) const
+        constexpr const_reference operator[]( size_type idx ) const
         {
             return *(begin() + idx);
         }
 
-        reference front()
+        constexpr reference front()
         {
             return (*this)[0];
         }
 
-        const_reference front() const
+        constexpr const_reference front() const
         {
             return (*this)[0];
         }
 
-        reference back()
+        constexpr reference back()
         {
             return (*this)[size() - 1];
         }
 
-        const_reference back() const
+        constexpr const_reference back() const
         {
             return (*this)[size() - 1];
         }
 
-        T * data() noexcept
+        constexpr T * data() noexcept
         {
             return begin();
         }
 
-        const T * data() const noexcept
+        constexpr const T * data() const noexcept
         {
             return begin();
         }
 
         // Iterators
-        const_iterator cbegin() const noexcept
+        constexpr const_iterator cbegin() const noexcept
         {
             return _storage_begin() + _offset;
         }
 
-        iterator begin() noexcept
+        constexpr iterator begin() noexcept
         {
             return _storage_begin() + _offset;
         }
 
-        const_iterator begin() const noexcept
+        constexpr const_iterator begin() const noexcept
         {
             return cbegin();
         }
 
-        const_iterator cend() const noexcept
+        constexpr const_iterator cend() const noexcept
         {
             return _storage_begin() + _offset + size();
         }
 
-        iterator end() noexcept
+        constexpr iterator end() noexcept
         {
             return _storage_begin() + _offset + size();
         }
 
-        const_iterator end() const noexcept
+        constexpr const_iterator end() const noexcept
         {
             return cend();
         }
 
-        const_reverse_iterator crbegin() const noexcept
+        constexpr const_reverse_iterator crbegin() const noexcept
         {
             return const_reverse_iterator(cend());
         }
 
-        reverse_iterator rbegin() noexcept
+        constexpr reverse_iterator rbegin() noexcept
         {
             return reverse_iterator(end());
         }
 
-        const_reverse_iterator rbegin() const noexcept
+        constexpr const_reverse_iterator rbegin() const noexcept
         {
             return crbegin();
         }
 
-        const_reverse_iterator crend() const noexcept
+        constexpr const_reverse_iterator crend() const noexcept
         {
             return const_reverse_iterator(cbegin());
         }
 
-        reverse_iterator rend() noexcept
+        constexpr reverse_iterator rend() noexcept
         {
             return reverse_iterator(begin());
         }
 
-        const_reverse_iterator rend() const noexcept
+        constexpr const_reverse_iterator rend() const noexcept
         {
             return crend();
         }
 
         // Capacity
-        [[nodiscard]] bool empty() const noexcept
+        [[nodiscard]] constexpr bool empty() const noexcept
         {
             return size() == 0;
         }
 
-        size_type size() const noexcept
+        constexpr size_type size() const noexcept
         {
             return _size;
         }
 
-        ssize_type ssize() const noexcept
+        constexpr ssize_type ssize() const noexcept
         {
             return _size;
         }
 
-        size_type max_size() const noexcept
+        constexpr size_type max_size() const noexcept
         {
             constexpr auto compile_time_limit = std::min(
                 // The ssize type's ceiling
@@ -391,7 +455,7 @@ namespace veque
         }
 
         // Reserve front and back capacity, in one operation.
-        void reserve( size_type front, size_type back )
+        constexpr void reserve( size_type front, size_type back )
         {
             if ( front > capacity_front() || back > capacity_back() )
             {
@@ -407,46 +471,46 @@ namespace veque
             }
         }
 
-        void reserve_front( size_type count )
+        constexpr void reserve_front( size_type count )
         {
             reserve( count, 0 );
         }
 
-        void reserve_back( size_type count )
+        constexpr void reserve_back( size_type count )
         {
             reserve( 0, count );
         }
 
-        void reserve( size_type count )
+        constexpr void reserve( size_type count )
         {
             reserve( count, count );
         }
 
         // Returns current size + unused allocated storage before front()
-        size_type capacity_front() const noexcept
+        constexpr size_type capacity_front() const noexcept
         {
             return _offset + size();
         }
 
         // Returns current size + unused allocated storage after back()
-        size_type capacity_back() const noexcept
+        constexpr size_type capacity_back() const noexcept
         {
             return capacity_full() - _offset;
         }
 
         // Returns current size + all unused allocated storage
-        size_type capacity_full() const noexcept
+        constexpr size_type capacity_full() const noexcept
         {
             return _data._allocated;
         }
 
         // To achieve interface parity with std::vector, capacity() returns capacity_back();
-        size_type capacity() const noexcept
+        constexpr size_type capacity() const noexcept
         {
             return capacity_back();
         }
 
-        void shrink_to_fit()
+        constexpr void shrink_to_fit()
         {
             if ( size() < capacity_full() )
             {
@@ -455,7 +519,7 @@ namespace veque
         }
 
         // Modifiers
-        void clear() noexcept
+        constexpr void clear() noexcept
         {
             _destroy( begin(), end() );
             _size = 0;
@@ -467,48 +531,68 @@ namespace veque
             }
         }
 
-        iterator insert( const_iterator it, const T & value )
+        constexpr iterator insert( const_iterator it, const T & value )
         {
             return emplace( it, value );
         }
 
-        iterator insert( const_iterator it, T && value )
+        constexpr iterator insert( const_iterator it, T && value )
         {
             return emplace( it, std::move(value) );
         }
 
-        iterator insert( const_iterator it, size_type count, const T & value )
+        constexpr iterator insert( const_iterator it, size_type count, const T & value )
         {
             auto res = _insert_storage( it, count );
             _value_construct_range( res, res + count, value );
             return res;
         }
 
-        template< typename InputIt, typename ItCat = typename std::iterator_traits<InputIt>::iterator_category >
-        iterator insert( const_iterator it, InputIt b, InputIt e )
+        template< std::input_iterator InputIt >
+        constexpr iterator insert( const_iterator it, InputIt b, InputIt e )
         {
-            return _insert( it, b, e, ItCat{} );
+            return _insert( it, b, e, _pass_tag_for<InputIt>{} );
         }
 
-        iterator insert( const_iterator it, std::initializer_list<T> lst )
+        constexpr iterator insert( const_iterator it, std::initializer_list<T> lst )
         {
             return insert( it, lst.begin(), lst.end() );
         }
 
+        template< container_compatible_range<T> R >
+        constexpr iterator insert_range( const_iterator it, R && rg )
+        {
+            if constexpr ( std::ranges::forward_range<R> )
+            {
+                // views::common makes begin() and end() the same type, so a
+                // sentinel-terminated range can reuse the sized insert path.
+                auto common = std::views::common( std::forward<R>(rg) );
+                return _insert( it, std::ranges::begin(common), std::ranges::end(common) );
+            }
+            else
+            {
+                // Single-pass: the length cannot be known before consuming the
+                // range, so collect it before disturbing this veque.
+                veque collected( _allocator() );
+                collected.append_range( std::forward<R>(rg) );
+                return _insert( it, collected.begin(), collected.end() );
+            }
+        }
+
         template< typename ...Args >
-        iterator emplace( const_iterator it, Args && ... args )
+        constexpr iterator emplace( const_iterator it, Args && ... args )
         {
             auto res = _insert_storage( it, 1 );
             alloc_traits::construct( _allocator(), res, std::forward<Args>(args)... );
             return res;
         }
 
-        iterator erase( const_iterator it )
+        constexpr iterator erase( const_iterator it )
         {
             return erase( it, std::next(it) );
         }
 
-        iterator erase( const_iterator b, const_iterator e )
+        constexpr iterator erase( const_iterator b, const_iterator e )
         {
             auto count = std::distance( b, e );
             if constexpr ( _resize_from_closest_side )
@@ -527,18 +611,18 @@ namespace veque
             return _mutable_iterator(b);
         }
 
-        void push_back( const T & value )
+        constexpr void push_back( const T & value )
         {
             emplace_back( value );
         }
 
-        void push_back( T && value )
+        constexpr void push_back( T && value )
         {
             emplace_back( std::move(value) );
         }
 
         template< typename ... Args>
-        reference emplace_back( Args && ...args )
+        constexpr reference emplace_back( Args && ...args )
         {
             if ( size() == capacity_back() )
             {
@@ -549,18 +633,18 @@ namespace veque
             return back();
         }
 
-        void push_front( const T & value )
+        constexpr void push_front( const T & value )
         {
             emplace_front( value );
         }
 
-        void push_front( T && value )
+        constexpr void push_front( T && value )
         {
             emplace_front( std::move(value) );
         }
 
         template< typename ... Args>
-        reference emplace_front( Args && ...args )
+        constexpr reference emplace_front( Args && ...args )
         {
             if ( size() == capacity_front() )
             {
@@ -571,28 +655,57 @@ namespace veque
             return front();
         }
 
-        void pop_back()
+        template< container_compatible_range<T> R >
+        constexpr void append_range( R && rg )
+        {
+            if constexpr ( std::ranges::forward_range<R> )
+            {
+                insert_range( end(), std::forward<R>(rg) );
+            }
+            else
+            {
+                if constexpr ( std::ranges::sized_range<R> )
+                {
+                    reserve_back( size() + static_cast<size_type>( std::ranges::size(rg) ) );
+                }
+                for ( auto && element : rg )
+                {
+                    emplace_back( std::forward<decltype(element)>(element) );
+                }
+            }
+        }
+
+        // std::vector has no counterpart: prepending to it shifts every
+        // element.  Inserting at begin() here shifts into the storage veque
+        // already reserves at the front, which is the point of the container.
+        template< container_compatible_range<T> R >
+        constexpr void prepend_range( R && rg )
+        {
+            insert_range( begin(), std::forward<R>(rg) );
+        }
+
+        constexpr void pop_back()
         {
             alloc_traits::destroy( _allocator(), &back() );
             _move_end( -1 );
         }
 
         // Move-savvy pop back with strong exception guarantee
-        T pop_back_element()
+        constexpr T pop_back_element()
         {
             auto res( _nothrow_construct_move(back()) );
             pop_back();
             return res;
         }
 
-        void pop_front()
+        constexpr void pop_front()
         {
             alloc_traits::destroy( _allocator(), &front() );
             _move_begin( 1 );
         }
 
         // Move-savvy pop front with strong exception guarantee
-        T pop_front_element()
+        constexpr T pop_front_element()
         {
             auto res( _nothrow_construct_move(front()) );
             pop_front();
@@ -600,40 +713,40 @@ namespace veque
         }
 
         // Resizes the veque, by adding or removing from the front. 
-        void resize_front( size_type count )
+        constexpr void resize_front( size_type count )
         {
             _resize_front( count );
         }
 
-        void resize_front( size_type count, const T & value )
+        constexpr void resize_front( size_type count, const T & value )
         {
             _resize_front( count, value );
         }
 
         // Resizes the veque, by adding or removing from the back.
-        void resize_back( size_type count )
+        constexpr void resize_back( size_type count )
         {
             _resize_back( count );
         }
 
-        void resize_back( size_type count, const T & value )
+        constexpr void resize_back( size_type count, const T & value )
         {
             _resize_back( count, value );
         }
 
         // To achieve interface parity with std::vector, resize() performs resize_back();
-        void resize( size_type count )
+        constexpr void resize( size_type count )
         {
             _resize_back( count );
         }
 
-        void resize( size_type count, const T & value )
+        constexpr void resize( size_type count, const T & value )
         {
             _resize_back( count, value );
         }
 
         template< typename OtherResizeTraits >
-        void swap( veque<T,OtherResizeTraits,Allocator> & other ) noexcept(
+        constexpr void swap( veque<T,OtherResizeTraits,Allocator> & other ) noexcept(
             noexcept(alloc_traits::propagate_on_container_swap::value
             || alloc_traits::is_always_equal::value))
         {
@@ -664,9 +777,27 @@ namespace veque
 
     private:
 
+        // Whether a range can be traversed more than once -- so its length can
+        // be measured up front and the storage allocated exactly once.
+        //
+        // This asks std::forward_iterator rather than reading the legacy
+        // iterator_category, because the two disagree for C++20 range
+        // iterators that yield prvalues: views::iota, views::transform with a
+        // by-value function, views::zip and views::enumerate are all
+        // random-access by concept while reporting input_iterator_tag.
+        // Dispatching on the tag sent those down the single-pass path and
+        // reallocated on every growth step.
+        struct _single_pass_tag {};
+        struct _multi_pass_tag {};
+
+        template< typename It >
+        using _pass_tag_for = std::conditional_t< std::forward_iterator<It>,
+                                                  _multi_pass_tag,
+                                                  _single_pass_tag >;
+
         // Every veque instantiation is a friend, so that operations between
         // veques with differing ResizeTraits can access each other's internals.
-        template< typename OtherT, typename OtherResizeTraits, typename OtherAllocator >
+        template< typename OtherT, resize_traits OtherResizeTraits, typename OtherAllocator >
         friend class veque;
 
         using _front_realloc = typename ResizeTraits::allocation_before_front::type;
@@ -702,18 +833,18 @@ namespace veque
             size_type _allocated = 0;
 
             Data() = default;
-            Data( size_type size, const Allocator & alloc )
+            constexpr Data( size_type size, const Allocator & alloc )
                 : Allocator{alloc}
                 , _storage{size ? std::allocator_traits<Allocator>::allocate( allocator(), size ) : nullptr}
                 , _allocated{size}
             {
             }
             Data( const Data& ) = delete;
-            Data( Data && other )
+            constexpr Data( Data && other )
             {
                 *this = std::move(other);
             }
-            ~Data()
+            constexpr ~Data()
             {
                 if ( _storage )
                 {
@@ -721,7 +852,7 @@ namespace veque
                 }
             }
             Data& operator=( const Data & ) = delete;
-            Data& operator=( Data && other )
+            constexpr Data& operator=( Data && other )
             {
                 using std::swap;
                 if constexpr( ! std::is_empty_v<Allocator> )
@@ -732,12 +863,12 @@ namespace veque
                 swap(_storage,    other._storage);
                 return *this;
             }
-            Allocator& allocator() { return *this; }
-            const Allocator& allocator() const { return *this; }
+            constexpr Allocator& allocator() { return *this; }
+            constexpr const Allocator& allocator() const { return *this; }
         } _data;
 
         template< typename InputIt >
-        veque( InputIt b, InputIt e, const Allocator & alloc, std::input_iterator_tag )
+        constexpr veque( InputIt b, InputIt e, const Allocator & alloc, _single_pass_tag )
             : veque{alloc}
         {
             for ( ; b != e; ++b )
@@ -747,8 +878,8 @@ namespace veque
         }
 
         template< typename InputIt >
-        veque( InputIt b, InputIt e, const Allocator & alloc, std::forward_iterator_tag )
-            : veque( _allocate_uninitialized_tag{}, std::distance( b, e ), alloc )
+        constexpr veque( InputIt b, InputIt e, const Allocator & alloc, _multi_pass_tag )
+            : veque( _allocate_uninitialized_tag{}, std::ranges::distance( b, e ), alloc )
         {
             _copy_construct_range( b, e, begin() );
         }
@@ -759,7 +890,7 @@ namespace veque
         struct _reallocate_uninitialized_tag {};
 
         // Create an uninitialized empty veque, with specified storage params
-        veque( _allocate_uninitialized_tag, size_type size, size_type allocated, size_type offset, const Allocator & alloc )
+        constexpr veque( _allocate_uninitialized_tag, size_type size, size_type allocated, size_type offset, const Allocator & alloc )
             : _size{ size }
             , _offset{ offset }
             , _data { allocated, alloc }
@@ -767,13 +898,13 @@ namespace veque
         }
 
         // Create an uninitialized empty veque, with storage for expected size
-        veque( _allocate_uninitialized_tag, size_type size, const Allocator & alloc )
+        constexpr veque( _allocate_uninitialized_tag, size_type size, const Allocator & alloc )
             : veque( _allocate_uninitialized_tag{}, size, size, 0, alloc )
         {
         }
 
         // Create an uninitialized empty veque, with storage for expected reallocated size
-        veque( _reallocate_uninitialized_tag, size_type size, const Allocator & alloc )
+        constexpr veque( _reallocate_uninitialized_tag, size_type size, const Allocator & alloc )
             : veque( _allocate_uninitialized_tag{}, size, _calc_reallocation(size), _calc_offset(size), alloc )
         {
         }
@@ -789,18 +920,18 @@ namespace veque
         }
 
         // Acquire Allocator
-        Allocator& _allocator() noexcept
+        constexpr Allocator& _allocator() noexcept
         {
             return _data.allocator();
         }
 
-        const Allocator& _allocator() const noexcept
+        constexpr const Allocator& _allocator() const noexcept
         {
             return _data.allocator();
         }
 
         // Destroy elements in range
-        void _destroy( const_iterator b, const_iterator e )
+        constexpr void _destroy( const_iterator b, const_iterator e )
         {
             if constexpr ( std::is_trivially_destructible_v<T> && _calls_destructor_directly )
             {
@@ -817,7 +948,7 @@ namespace veque
         }
 
         template< typename OtherResizeTraits >
-        veque & _copy_assignment( const veque<T,OtherResizeTraits,Allocator> & other )
+        constexpr veque & _copy_assignment( const veque<T,OtherResizeTraits,Allocator> & other )
         {
             if constexpr ( alloc_traits::propagate_on_container_copy_assignment::value )
             {
@@ -842,7 +973,7 @@ namespace veque
         }
 
         template< typename OtherResizeTraits >
-        veque & _move_assignment( veque<T,OtherResizeTraits,Allocator> && other ) noexcept(
+        constexpr veque & _move_assignment( veque<T,OtherResizeTraits,Allocator> && other ) noexcept(
             noexcept(alloc_traits::propagate_on_container_move_assignment::value
             || alloc_traits::is_always_equal::value) )
         {
@@ -874,63 +1005,67 @@ namespace veque
 
         // Construct elements in range
         template< typename ...Args >
-        void _value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
+        constexpr void _value_construct_range( const_iterator b, const_iterator e, const Args & ...args )
         {
             static_assert( sizeof...(args) <= 1, "This is for default- or copy-constructing" );
 
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_default_constructor_directly )
+            // The byte-wise paths below cannot run during constant
+            // evaluation, which falls through to the element-wise loop.
+            if ( !std::is_constant_evaluated() )
             {
-                if constexpr ( sizeof...(args) == 0 )
+                if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_default_constructor_directly )
+                {
+                    if constexpr ( sizeof...(args) == 0 )
+                    {
+                        auto count = std::distance( b, e );
+                        if ( count )
+                        {
+                            std::memset( _mutable_iterator(b), 0, count * sizeof(T) );
+                        }
+                    }
+                    else
+                    {
+                        std::fill( _mutable_iterator(b), _mutable_iterator(e), args...);
+                    }
+                    return;
+                }
+            }
+            for ( auto dest = _mutable_iterator(b); dest != e; ++dest )
+            {
+                alloc_traits::construct( _allocator(), dest, args... );
+            }
+        }
+
+        template< typename It >
+        constexpr void _copy_construct_range( It b, It e, iterator dest )
+        {
+            static_assert( std::forward_iterator<It> );
+            // The memcpy fast path requires the source to be a raw pointer; a
+            // foreign iterator (e.g. std::vector's) is not necessarily
+            // contiguous, so route it through element-wise construction.
+            if ( !std::is_constant_evaluated() )
+            {
+                if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly && std::is_pointer_v<It> )
                 {
                     auto count = std::distance( b, e );
                     if ( count )
                     {
-                        std::memset( _mutable_iterator(b), 0, count * sizeof(T) );
+                        std::memcpy( dest, b, count * sizeof(T) );
                     }
-                }
-                else
-                {
-                    std::fill( _mutable_iterator(b), _mutable_iterator(e), args...);
+                    return;
                 }
             }
-            else
+            for ( ; b != e; ++dest, ++b )
             {
-                for ( auto dest = _mutable_iterator(b); dest != e; ++dest )
-                {
-                    alloc_traits::construct( _allocator(), dest, args... );
-                }
-            }
-        }
-
-        template< typename It >
-        void _copy_construct_range( It b, It e, iterator dest )
-        {
-            static_assert( std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,std::forward_iterator_tag> );
-            // The memcpy fast path requires the source to be a raw pointer; a
-            // foreign iterator (e.g. std::vector's) is not necessarily
-            // contiguous, so route it through element-wise construction.
-            if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly && std::is_pointer_v<It> )
-            {
-                auto count = std::distance( b, e );
-                if ( count )
-                {
-                    std::memcpy( dest, b, count * sizeof(T) );
-                }
-            }
-            else
-            {
-                for ( ; b != e; ++dest, ++b )
-                {
-                    alloc_traits::construct( _allocator(), dest, *b );
-                }
+                alloc_traits::construct( _allocator(), dest, *b );
             }
         }
         
         template< typename It >
-        void _assign( It b, It e )
+        constexpr void _assign( It b, It e )
         {
-            static_assert( std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,std::forward_iterator_tag> );
-            if ( std::distance( b, e ) > static_cast<difference_type>(capacity_full()) )
+            static_assert( std::forward_iterator<It> );
+            if ( std::ranges::distance( b, e ) > static_cast<difference_type>(capacity_full()) )
             {
                 _swap_without_allocator( veque( b, e, _allocator() ) );
             }
@@ -941,13 +1076,13 @@ namespace veque
         }
 
         template< typename It >
-        void _assign( It b, It e, std::forward_iterator_tag )
+        constexpr void _assign( It b, It e, _multi_pass_tag )
         {
             _assign( b, e );
         }
 
         template< typename It >
-        void _assign( It b, It e, std::input_iterator_tag )
+        constexpr void _assign( It b, It e, _single_pass_tag )
         {
             // Input Iterators require a single-pass solution
             clear();
@@ -958,22 +1093,22 @@ namespace veque
         }
 
         template< typename It >
-        iterator _insert( const_iterator it, It b, It e )
+        constexpr iterator _insert( const_iterator it, It b, It e )
         {
-            static_assert( std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,std::forward_iterator_tag> );
-            auto res = _insert_storage( it, std::distance( b, e ) );
+            static_assert( std::forward_iterator<It> );
+            auto res = _insert_storage( it, std::ranges::distance( b, e ) );
             _copy_construct_range( b, e, res );
             return res;
         }
 
         template< typename It >
-        iterator _insert( const_iterator it, It b, It e, std::forward_iterator_tag )
+        constexpr iterator _insert( const_iterator it, It b, It e, _multi_pass_tag )
         {
             return _insert( it, b, e );
         }
 
         template< typename It >
-        iterator _insert( const_iterator it, It b, It e, std::input_iterator_tag )
+        constexpr iterator _insert( const_iterator it, It b, It e, _single_pass_tag )
         {
             // Input Iterators require a single-pass solution
             auto allocated = veque( b, e );
@@ -981,7 +1116,7 @@ namespace veque
         }
 
         template< typename OtherResizeTraits >
-        void _swap_with_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
+        constexpr void _swap_with_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
         {
             // Swap everything.  Members are swapped individually rather than
             // swapping the whole Data, because Data is a distinct type for each
@@ -999,7 +1134,7 @@ namespace veque
         }
 
         template< typename OtherResizeTraits >
-        void _swap_without_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
+        constexpr void _swap_without_allocator( veque<T,OtherResizeTraits,Allocator> && other ) noexcept
         {
             // Don't swap _data.allocator().
             std::swap( _size,            other._size );
@@ -1009,7 +1144,7 @@ namespace veque
         }
 
         template< typename ...Args >
-        void _resize_front( size_type count, const Args & ...args )
+        constexpr void _resize_front( size_type count, const Args & ...args )
         {
             difference_type delta = count - size();
             if ( delta > 0 )
@@ -1028,7 +1163,7 @@ namespace veque
         }
 
         template< typename ...Args >
-        void _resize_back( size_type count, const Args & ...args )
+        constexpr void _resize_back( size_type count, const Args & ...args )
         {
             difference_type delta = count - size();
             if ( delta > 0 )
@@ -1048,7 +1183,7 @@ namespace veque
 
         // Move veque to new storage, with specified capacity...
         // ...and yet-unused space at back of this storage
-        void _reallocate_space_at_back( size_type count )
+        constexpr void _reallocate_space_at_back( size_type count )
         {
             auto storage_needed = _calc_reallocation(count);
             auto current_capacity = capacity_full();
@@ -1068,7 +1203,7 @@ namespace veque
         }
         
         // ...and yet-unused space at front of this storage
-        void _reallocate_space_at_front( size_type count )
+        constexpr void _reallocate_space_at_front( size_type count )
         {
             auto storage_needed = _calc_reallocation(count);
             auto current_capacity = capacity_full();
@@ -1088,7 +1223,7 @@ namespace veque
         }
         
         // Move veque to new storage, with specified capacity
-        void _reallocate( size_type allocated, size_type offset )
+        constexpr void _reallocate( size_type allocated, size_type offset )
         {
             auto replacement = veque( _allocate_uninitialized_tag{}, size(), allocated, offset, _allocator() );
             _nothrow_move_construct_range( begin(), end(), replacement.begin() );
@@ -1096,7 +1231,7 @@ namespace veque
         }
 
         // Insert empty space, choosing the most efficient way to shift existing elements
-        iterator _insert_storage( const_iterator it, size_type count )
+        constexpr iterator _insert_storage( const_iterator it, size_type count )
         {
             auto required_size = size() + count;
             auto can_shift_back = capacity_back() >= required_size;
@@ -1167,7 +1302,7 @@ namespace veque
         // Veque will grow, if range moves past begin().
         // Veque will shrink if range includes end().
         // Returns iterator to beginning of destructed gap
-        void _shift_front( const_iterator b, const_iterator e, size_type count )
+        constexpr void _shift_front( const_iterator b, const_iterator e, size_type count )
         {
             if ( e == begin() )
             {
@@ -1178,11 +1313,16 @@ namespace veque
             if ( element_count > 0 )
             {
                 auto dest = start - count;
+                bool moved_as_bytes = false;
                 if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                 {
-                    std::memmove( dest, start, element_count * sizeof(T) );
+                    if ( !std::is_constant_evaluated() )
+                    {
+                        std::memmove( dest, start, element_count * sizeof(T) );
+                        moved_as_bytes = true;
+                    }
                 }
-                else
+                if ( !moved_as_bytes )
                 {
                     auto src = start;
                     auto dest_construct_end = std::min( begin(), _mutable_iterator(e) - count );
@@ -1204,7 +1344,7 @@ namespace veque
         // Veque will grow, if range moves past end().
         // Veque will shrink if range includes begin().
         // Returns iterator to beginning of destructed gap
-        void _shift_back( const_iterator b, const_iterator e, size_type count )
+        constexpr void _shift_back( const_iterator b, const_iterator e, size_type count )
         {
             auto start = _mutable_iterator(b); 
             if ( b == end() )
@@ -1214,11 +1354,16 @@ namespace veque
             auto element_count = std::distance( b, e );
             if ( element_count > 0 )
             {
+                bool moved_as_bytes = false;
                 if constexpr ( std::is_trivially_copyable_v<T> && std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                 {
-                    std::memmove( start + count, start, element_count * sizeof(T) );
+                    if ( !std::is_constant_evaluated() )
+                    {
+                        std::memmove( start + count, start, element_count * sizeof(T) );
+                        moved_as_bytes = true;
+                    }
                 }
-                else
+                if ( !moved_as_bytes )
                 {
                     auto src = _mutable_iterator(e-1);
                     auto dest = src + count;
@@ -1242,11 +1387,11 @@ namespace veque
         // Favors copying over constructing firstly, and positioning the new elements
         // at the center of storage secondly
         template< typename It >
-        void _reassign_existing_storage( It b, It e )
+        constexpr void _reassign_existing_storage( It b, It e )
         {
-            static_assert( std::is_convertible_v<typename std::iterator_traits<It>::iterator_category,std::forward_iterator_tag> );
+            static_assert( std::forward_iterator<It> );
 
-            auto count = std::distance( b, e );
+            auto count = std::ranges::distance( b, e );
             auto size_delta = static_cast<difference_type>( count - size() );
             // The "ideal" begin would put the new data in the center of storage
             auto ideal_begin = _storage_begin() + (capacity_full() - count) / 2;
@@ -1277,17 +1422,24 @@ namespace veque
                 // constructed elements so final store is as close to center as possible
                 ideal_begin = std::clamp( ideal_begin, end() - count, begin() );
 
-                auto src = b;
-                auto copy_src = src + std::distance( ideal_begin, begin() );
-                _copy_construct_range( src, copy_src, ideal_begin );
-                std::copy( copy_src, copy_src + ssize(), begin() );
-                _copy_construct_range( copy_src + ssize(), e, end() );
+                // std::ranges::next rather than +: a forward-only source
+                // (std::list, std::set) cannot be indexed, and this stays O(1)
+                // for the random-access sources that can.
+                const auto constructed_before =
+                    static_cast<std::iter_difference_t<It>>( std::distance( ideal_begin, begin() ) );
+                const auto assign_begin = std::ranges::next( b, constructed_before );
+                const auto assign_end =
+                    std::ranges::next( assign_begin, static_cast<std::iter_difference_t<It>>( ssize() ) );
+
+                _copy_construct_range( b, assign_begin, ideal_begin );
+                std::copy( assign_begin, assign_end, begin() );
+                _copy_construct_range( assign_end, e, end() );
             }
             _move_begin( std::distance( begin(), ideal_begin ) );
             _move_end( std::distance( end(), ideal_begin + count ) );
         }
 
-        void _reassign_existing_storage( size_type count, const T & value )
+        constexpr void _reassign_existing_storage( size_type count, const T & value )
         {
             auto size_delta = static_cast<difference_type>( count - size() );
             auto ideal_begin = _storage_begin();
@@ -1332,7 +1484,7 @@ namespace veque
         }
 
         // Casts to T&& or T&, depending on whether move construction is noexcept
-        static decltype(auto) _nothrow_construct_move( T & t )
+        static constexpr decltype(auto) _nothrow_construct_move( T & t )
         {
             if constexpr ( std::is_nothrow_move_constructible_v<T> )
             {
@@ -1345,7 +1497,7 @@ namespace veque
         }
 
         // Move-constructs if noexcept, copies otherwise
-        void _nothrow_move_construct( iterator dest, iterator src )
+        constexpr void _nothrow_move_construct( iterator dest, iterator src )
         {
             if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
             {
@@ -1357,27 +1509,28 @@ namespace veque
             }
         }
 
-        void _nothrow_move_construct_range( iterator b, iterator e, iterator dest )
+        constexpr void _nothrow_move_construct_range( iterator b, iterator e, iterator dest )
         {
             auto size = std::distance( b, e );
             if ( size )
             {
-                if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
+                if ( !std::is_constant_evaluated() )
                 {
-                    std::memcpy( dest, b, size * sizeof(T) );
-                }
-                else
-                {
-                    for ( ; b != e; ++dest, ++b )
+                    if constexpr ( std::is_trivially_copy_constructible_v<T> && _calls_copy_constructor_directly )
                     {
-                        _nothrow_move_construct( dest, b );
+                        std::memcpy( dest, b, size * sizeof(T) );
+                        return;
                     }
+                }
+                for ( ; b != e; ++dest, ++b )
+                {
+                    _nothrow_move_construct( dest, b );
                 }
             }
         }
 
         // Move-assigns if noexcept, copies otherwise
-        static void _nothrow_move_assign( iterator dest, iterator src )
+        static constexpr void _nothrow_move_assign( iterator dest, iterator src )
         {
             if constexpr ( std::is_nothrow_move_assignable_v<T> )
             {
@@ -1389,7 +1542,7 @@ namespace veque
             }
         }
 
-        static void _nothrow_move_assign_range( iterator b, iterator e, iterator src )
+        static constexpr void _nothrow_move_assign_range( iterator b, iterator e, iterator src )
         {
             for ( auto dest = b; dest != e; ++dest, ++src )
             {
@@ -1398,76 +1551,84 @@ namespace veque
         }
 
         // Adjust begin(), end() iterators
-        void _move_begin( difference_type count ) noexcept
+        constexpr void _move_begin( difference_type count ) noexcept
         {
             _size -= count;
             _offset += count;
         }
 
-        void _move_end( difference_type count ) noexcept
+        constexpr void _move_end( difference_type count ) noexcept
         {
             _size += count;
         }
 
         // Convert a local const_iterator to iterator
-        iterator _mutable_iterator( const_iterator i )
+        constexpr iterator _mutable_iterator( const_iterator i )
         {
             return begin() + std::distance( cbegin(), i );
         }
 
         // Retrieves beginning of storage, which may be before begin()
-        const_iterator _storage_begin() const noexcept
+        constexpr const_iterator _storage_begin() const noexcept
         {
             return _data._storage;
         }
 
-        iterator _storage_begin() noexcept
+        constexpr iterator _storage_begin() noexcept
         {
             return _data._storage;
         }
     };
 
     template< typename T, typename LResizeTraits, typename LAlloc, typename RResizeTraits, typename RAlloc >
-    inline bool operator==( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
+    inline constexpr bool operator==( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
     {
         return std::equal( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
     }
 
     template< typename T, typename LResizeTraits, typename LAlloc, typename RResizeTraits, typename RAlloc >
-    inline bool operator!=( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
+    inline constexpr bool operator!=( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
     {
         return !( lhs == rhs );
     }
 
     template< typename T, typename LResizeTraits, typename LAlloc, typename RResizeTraits, typename RAlloc >
-    inline bool operator<( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
+    inline constexpr bool operator<( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
     {
         return std::lexicographical_compare( lhs.begin(), lhs.end(), rhs.begin(), rhs.end() );
     }
 
     template< typename T, typename LResizeTraits, typename LAlloc, typename RResizeTraits, typename RAlloc >
-    inline bool operator<=( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
+    inline constexpr bool operator<=( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
     {
         return !( rhs < lhs );
     }
 
     template< typename T, typename LResizeTraits, typename LAlloc, typename RResizeTraits, typename RAlloc >
-    inline bool operator>( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
+    inline constexpr bool operator>( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
     {
         return ( rhs < lhs );
     }
 
     template< typename T, typename LResizeTraits, typename LAlloc, typename RResizeTraits, typename RAlloc >
-    inline bool operator>=( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
+    inline constexpr bool operator>=( const veque<T,LResizeTraits,LAlloc> &lhs, const veque<T,RResizeTraits,RAlloc> &rhs )
     {
         return !( lhs < rhs );
     }
 
     template< typename T, typename ResizeTraits, typename Alloc >
-    inline void swap( veque<T,ResizeTraits,Alloc> & lhs, veque<T,ResizeTraits,Alloc> & rhs ) noexcept(noexcept(lhs.swap(rhs)))
+    inline constexpr void swap( veque<T,ResizeTraits,Alloc> & lhs, veque<T,ResizeTraits,Alloc> & rhs ) noexcept(noexcept(lhs.swap(rhs)))
     {
         lhs.swap(rhs);
     }
+
+#ifdef __cpp_lib_containers_ranges
+    // Template deduction guide for a range
+    template< std::ranges::input_range R,
+              typename Alloc = std::allocator<std::ranges::range_value_t<R>> >
+    veque( std::from_range_t, R &&, Alloc = Alloc() )
+        -> veque< std::ranges::range_value_t<R>, fast_resize_traits, Alloc >;
+#endif
 
     // Template deduction guide for iterator pair
     template< typename InputIt,
@@ -1482,7 +1643,7 @@ namespace std
     template< typename T, typename ResizeTraits, typename Alloc >
     struct hash<veque::veque<T,ResizeTraits,Alloc>>
     {
-        size_t operator()( const veque::veque<T,ResizeTraits,Alloc> & v ) const
+        constexpr size_t operator()( const veque::veque<T,ResizeTraits,Alloc> & v ) const
         {
             size_t hash = 0;
             auto hasher = std::hash<T>();
